@@ -3,10 +3,40 @@ import os
 from time import time
 from multiprocessing import Pool
 import random
+import pydub as pd
+import numpy as np
+import scipy.signal as ssi
+import math
 
 
-def convolve(irfile_path, speech_path, output_path):
-    pass
+def convolve(irfile_path, speech_path, output_path, target_len=1):
+    IR = pd.AudioSegment.from_file(irfile_path)
+    speech = pd.AudioSegment.from_file(speech_path)
+
+    tracks = IR.split_to_mono()
+    speechsamples = np.array(speech.get_array_of_samples()) / speech.max_possible_amplitude
+    if len(speechsamples) > speech.frame_rate * target_len:
+        rand_start = random.randint(0, len(speechsamples) - speech.frame_rate * target_len - 1)
+        speechsamples = speechsamples[rand_start:(rand_start + speech.frame_rate * target_len)]
+    convolved = []
+    for i in range(len(tracks)):
+        IRsamples = np.array(tracks[i].get_array_of_samples()) / IR.max_possible_amplitude
+        if IR.frame_rate != speech.frame_rate:
+            newlen = int(math.ceil(len(IRsamples) * speech.frame_rate / IR.frame_rate))
+            IRsamples = ssi.resample(IRsamples, newlen)
+        temp = np.convolve(speechsamples, IRsamples)
+        convolved.append(temp)
+    convolved = np.array(convolved)
+    maxval = np.max(np.fabs(convolved))
+    if maxval == 0:
+        print("file {} not saved due to zero strength".format(output_path))
+        return -1
+    amp_ratio = 1.0 / maxval
+    convolved *= amp_ratio
+    convolved *= IR.max_possible_amplitude
+    rawdata = convolved.transpose().astype(np.int32).tobytes()
+    sound = pd.AudioSegment(data=rawdata, sample_width=IR.sample_width, frame_rate=speech.frame_rate, channels=IR.channels)
+    sound.export(output_path, format='wav')
 
 
 def main():
@@ -27,7 +57,7 @@ def main():
         print('IR folder {} non-exist, abort!'.format(irpath))
         return
 
-    if not os.path.isfile(speechpath):
+    if not os.path.exists(speechpath):
         print('Speech folder {} non-exist, abort!'.format(speechpath))
         return
 
