@@ -1,6 +1,7 @@
 import os
 import sys
 import numpy as np
+import csv
 import torch
 import torch.nn as nn
 from torch.utils.data.dataset import Dataset
@@ -11,15 +12,30 @@ from sklearn.preprocessing import scale
 from itertools import compress
 import argparse
 
+# Device configuration
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
 # dataset
 class CustomDataset(Dataset):
+    def __init__(self, data_entries):
+        self.len = len(data_entries)
+        self.internal_data = data_entries
+        self.data_rand = np.random.uniform(0, 1, [6, 25, 513]).astype('f')
+        self.label_rand = np.random.uniform(0, 1, 3).astype('f')
+
     def __len__(self):
-        return 3000
+        return self.len
 
     def __getitem__(self, index):
-        data = np.random.uniform(0, 1, [6, 25, 513]).astype('f')
-        label = np.atleast_2d(0)
-        return data, label
+        try:
+            data = np.load(self.internal_data[index][0])
+        except Exception as e:
+            print(str(e))
+            print("Error loading: " + str(index))
+        data = np.moveaxis(data, -1, 0)
+        label = np.array(self.internal_data[index][1:4]).astype("float32")
+
+        return data, label[0]
 
 class ConvNet(nn.Module):
     def __init__(self):
@@ -45,30 +61,134 @@ class ConvNet(nn.Module):
         self.hidden_size = 64
         self.num_layers = 2
         self.lstm = nn.LSTM(input_size=128, hidden_size=self.hidden_size, num_layers=self.num_layers, batch_first=True, bidirectional=True)
-        self.fc = nn.Linear(hidden_size*2, num_classes)
+        self.fc = nn.Linear(self.hidden_size*2, 3)
 
     def forward(self, x):
         out = self.conv(x)  # (bsz, 64, 25, 2)
-        reshape = out.permute(0, 2, 1, 3).contiguous().view(32, 25, 128)
+        reshape = out.permute(0, 2, 1, 3).contiguous().view(len(out), 25, 128)
         # Set initial states
-        h0 = torch.zeros(self.num_layers*2, x.size(0), self.hidden_size).to(device) # 2 for bidirection 
-        c0 = torch.zeros(self.num_layers*2, x.size(0), self.hidden_size).to(device)
+        h0 = torch.zeros(self.num_layers*2, reshape.size(0), self.hidden_size).to(device) # 2 for bidirection 
+        c0 = torch.zeros(self.num_layers*2, reshape.size(0), self.hidden_size).to(device)
 
-        out, _ = self.lstm(x, (h0, c0))
-        
-        return out
+        lstm_out, _ = self.lstm(reshape, (h0, c0))
+        fc_out = self.fc(lstm_out[:, -1, :]) # NOTE: revisit to use more than just the last LSTM output
 
-if __name__ == "__main__":
+        return fc_out
+
+def diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, data_folder, results_dir, nthreads=8, log_interval=100):
+
     # initialize dataset
-    train_dataset = CustomDataset()
+    if not os.path.exists(data_folder):
+        print("data folder non-exist")
+        return
+    
+    labelpath = os.path.join(data_folder, 'labels.csv')
+    f = open(labelpath, 'r')
+    lines = f.readlines()
+    dataset = []
+    for line in lines:
+        line_arr = line.replace('\n', '').split(',')
+        npypath = os.path.join(data_folder, line_arr[0])
+        if os.path.exists(npypath):
+            dataset.append([npypath, [float(x) for x in line_arr[1:4]]])
+    train_data_entries, val_data_entries = train_test_split(dataset, test_size=TEST_TO_ALL_RATIO)
+    train_dataset = CustomDataset(train_data_entries)
+    val_dataset = CustomDataset(val_data_entries)
 
     # initialize Data loader
     train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                               batch_size=32,
-                                               shuffle=True, num_workers=1)
+                                               batch_size=batch_size,
+                                               shuffle=False, num_workers=nthreads)
+    val_loader = torch.utils.data.DataLoader(dataset=val_dataset,
+                                            batch_size=batch_size,
+                                            shuffle=False, num_workers=nthreads)
 
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     model = ConvNet().to(device)
-    for i, (data, labels) in enumerate(train_loader):
-        outputs = model(data)
-        print(str(outputs))
+
+    # Loss and optimizer
+    criterion = nn.MSELoss(reduction='sum')
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    # optimizer = torch.optim.Adadelta(model.parameters(), lr=learning_rate)
+
+    os.makedirs(results_dir)
+    writer = SummaryWriter(results_dir)
+
+    # Train the model
+    ts = time.time()
+    num_iterations_before_early_stop = 5
+    early_stop_flag = False
+    early_stop_cnt = 0
+    lowest_error = 1e6
+    total_step = len(train_loader)
+    for epoch in range(num_epochs):
+        if not early_stop_flag:
+            model.train()
+            for i, (image, labels) in enumerate(train_loader):
+                outputs = model(image)
+                loss = criterion(outputs, labels)
+
+                # Backward and optimize
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                # log
+                niter = epoch * len(train_loader) + i+1
+                writer.add_scalar("training_loss", loss.item() / len(labels), niter)
+                if i % 50 == 0:
+                    print('[Training] Epoch [{}/{}], Step [{}/{}], Loss: {:.8f}, time elapsed: {:.2f} seconds'
+                          .format(epoch + 1, num_epochs, i + 1, total_step, loss.item() / len(labels), time.time()-ts))
+
+                if (i+1) % log_interval == 0:
+                    # Use val set to test the model at each epoch
+                    model.eval()  # eval mode (batchnorm uses moving mean/variance instead of mini-batch mean/variance)
+                    with torch.no_grad():
+                        total_val_loss = 0
+                        total_labels = 0
+                        for images, labels in val_loader:
+                            images = images.float().to(device)
+                            labels = labels.float().to(device)
+                            outputs = model(images)
+                            loss = criterion(outputs, labels)
+                            total_val_loss += loss
+                            total_labels += len(labels)
+                        average_val_loss = total_val_loss.item() / total_labels
+                        writer.add_scalar("val_loss", average_val_loss, niter)
+                        print('[Validation] Test Accuracy of the model at Epoch {}, iter {} : {:.8f}'.format(epoch + 1, niter, average_val_loss))
+
+                        # remember lowest error
+                        if average_val_loss < lowest_error:
+                            lowest_error = average_val_loss
+                            early_stop_cnt = 0
+                            torch.save(model.state_dict(), os.path.join(results_dir, "best_valid.pth"))
+                        else:
+                            early_stop_cnt += 1
+                            if early_stop_cnt >= num_iterations_before_early_stop:
+                                early_stop_flag = True
+
+        else:
+            print("=> early stop with val error {:.8f}".format(lowest_error))
+            writer.close()
+            break  # early stop break
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(prog='diffraction_CNNtrain',
+                                     description="""Script to train the InstantDiffraction system""")
+    # parser.add_argument("--input", "-i", required=True, help="Directory where data and labels are", type=str)
+    parser.add_argument("--nthreads", "-n", type=int, default=1, help="Number of threads to use")
+
+    args = parser.parse_args()
+
+    # Hyper parameters
+    num_epochs = 5
+    batch_size = 10
+    TEST_TO_ALL_RATIO = 0.1
+    data_folder = "data"
+    nworkers = args.nthreads
+
+    rates = [1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2]
+    for learning_rate in rates:
+        # dir to store the experiment files
+        results_dir = "results/results" + time.strftime("_%Y_%m_%d_%H_%M_%S") + '_lr{}'.format(learning_rate)
+        print('writing results to {}'.format(results_dir))
+        diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, data_folder, results_dir, nthreads=nworkers)
