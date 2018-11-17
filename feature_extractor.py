@@ -30,14 +30,18 @@ def calc_spectrum(data):
 
 def extract_feature(filepath, savepath):
     tracks = AudioSegment.from_wav(filepath)
-    all_freqs = np.zeros((len(tracks), num_frames, chunk_size // 2 + 1), dtype=np.complex_)
-    for i in range(len(tracks)):
-        track = (np.array(tracks[i].get_array_of_samples()) / tracks.max_possible_amplitude)
+    monotracks = tracks.split_to_mono()
+    all_freqs = np.zeros((tracks.channels, num_frames, chunk_size // 2 + 1), dtype=np.complex_)
+    for i in range(tracks.channels):
+        track = (np.array(monotracks[i].get_array_of_samples()) / tracks.max_possible_amplitude)
         target_rate = 16000
         expect_len = int(len(track) * target_rate / tracks.frame_rate)
-        resampled = scipy.signal.resample(track, expect_len)
-        print('resampled from {} to {}'.format(len(track), expect_len))
-        all_freqs[i, :, :] = calc_spectrum(resampled)
+        if expect_len != len(track):
+            resampled = scipy.signal.resample(track, expect_len)
+            print('resampled from {} to {}'.format(len(track), expect_len))
+            all_freqs[i, :, :] = calc_spectrum(resampled)
+        else:
+            all_freqs[i, :, :] = calc_spectrum(track)
 
     WX = np.multiply(all_freqs[0, :, :], all_freqs[3, :, :])
     WY = np.multiply(all_freqs[0, :, :], all_freqs[1, :, :])
