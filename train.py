@@ -45,18 +45,19 @@ class ConvNet(nn.Module):
         self.hidden_size = 64
         self.num_layers = 2
         self.lstm = nn.LSTM(input_size=128, hidden_size=self.hidden_size, num_layers=self.num_layers, batch_first=True, bidirectional=True)
-        self.fc = nn.Linear(hidden_size*2, num_classes)
+        self.fc = nn.Linear(self.hidden_size*2, 3)
 
     def forward(self, x):
         out = self.conv(x)  # (bsz, 64, 25, 2)
         reshape = out.permute(0, 2, 1, 3).contiguous().view(32, 25, 128)
         # Set initial states
-        h0 = torch.zeros(self.num_layers*2, x.size(0), self.hidden_size).to(device) # 2 for bidirection 
-        c0 = torch.zeros(self.num_layers*2, x.size(0), self.hidden_size).to(device)
+        h0 = torch.zeros(self.num_layers*2, reshape.size(0), self.hidden_size).to(device) # 2 for bidirection 
+        c0 = torch.zeros(self.num_layers*2, reshape.size(0), self.hidden_size).to(device)
 
-        out, _ = self.lstm(x, (h0, c0))
-        
-        return out
+        lstm_out, _ = self.lstm(reshape, (h0, c0))
+        fc_out = self.fc(lstm_out[:, -1, :]) # NOTE: revisit to use more than just the last LSTM output
+
+        return fc_out
 
 if __name__ == "__main__":
     # initialize dataset
