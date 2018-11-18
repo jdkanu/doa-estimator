@@ -94,8 +94,8 @@ def diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, 
         npypath = os.path.join(data_folder, line[0])
         # if os.path.exists(npypath):
         dataset.append([npypath, [float(x) for x in line[1:4]]])
-        if len(dataset)>1000:
-            break
+        # if len(dataset)>1000:
+        #     break
 
     train_data_entries, val_data_entries = train_test_split(dataset, test_size=TEST_TO_ALL_RATIO)
     train_dataset = CustomDataset(train_data_entries)
@@ -183,20 +183,28 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='diffraction_CNNtrain',
                                      description="""Script to train the InstantDiffraction system""")
     parser.add_argument("--input", "-i", required=True, help="Directory where data and labels are", type=str)
-    parser.add_argument("--nthreads", "-n", type=int, default=1, help="Number of threads to use")
-
+    parser.add_argument("--nthreads", "-n", type=int, default=0, help="Number of threads to use")
+    parser.add_argument("--rate", "-r", type=float, default=-1, help="Choose a learning rate, default to sweep")
+    parser.add_argument("--batchsize", "-b", type=int, default=-1, help="Choose a batchsize, default to sweep")
     args = parser.parse_args()
 
     # Hyper parameters
     num_epochs = 5
-    batch_size = 64
     TEST_TO_ALL_RATIO = 0.01
     data_folder = args.input
     nworkers = args.nthreads
+    rate_select = args.rate
+    batch_select = args.batchsize
 
-    rates = [1e-5, 1e-7, 1e-9]
+    rates = [1e-3, 1e-9, 1e-5, 1e-7]
+    batches = [32, 64, 128, 256]
+    if rate_select > 0:
+        rates = [rate_select]
+    if batch_select > 0:
+        batches = [batch_select]
     for learning_rate in rates:
-        # dir to store the experiment files
-        results_dir = "results/results" + time.strftime("_%Y_%m_%d_%H_%M_%S") + '_lr{}'.format(learning_rate)
-        print('writing results to {}'.format(results_dir))
-        diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, data_folder, results_dir, nthreads=nworkers)
+        for batch_size in batches:
+            # dir to store the experiment files
+            results_dir = "results/results" + time.strftime("_%Y_%m_%d_%H_%M_%S") + '_lr{}'.format(learning_rate) + '_bs{}'.format(batch_size)
+            print('writing results to {}'.format(results_dir))
+            diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, data_folder, results_dir, nthreads=nworkers)
