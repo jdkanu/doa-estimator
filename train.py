@@ -14,7 +14,6 @@ import argparse
 
 # Device configuration
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 
 # dataset
@@ -198,6 +197,9 @@ if __name__ == "__main__":
 
     rates = [1e-3, 1e-9, 1e-5, 1e-7]
     batches = [32, 64, 128, 256]
+
+    if torch.cuda.is_available():
+        torch.set_default_tensor_type('torch.cuda.FloatTensor')
     if rate_select > 0:
         rates = [rate_select]
     if batch_select > 0:
