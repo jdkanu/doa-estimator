@@ -39,9 +39,10 @@ class CustomDataset(Dataset):
         return data, label[0]
 
 class ConvNet(nn.Module):
-    def __init__(self):
+    def __init__(self, dropouts):
         super(ConvNet, self).__init__()
-        self.conv = nn.Sequential(
+        self.dropouts = dropouts
+        conv_layers = [
             nn.Conv2d(6, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
@@ -56,15 +57,22 @@ class ConvNet(nn.Module):
             nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=(1, 4), stride=(1, 4)),  # (bsz, 64, 25, 2)
-        )
+        ]
+        modules = []
+        for layer in conv_layers:
+            modules.append(layer)
+            modules.append(dropouts.conv_dropout)
+        self.conv = nn.Sequential(*modules)
 
         # from https://github.com/yunjey/pytorch-tutorial/blob/master/tutorials/02-intermediate/bidirectional_recurrent_neural_network/main.py
         self.hidden_size = 64
         self.num_layers = 2
         self.lstm = nn.LSTM(input_size=128, hidden_size=self.hidden_size, num_layers=self.num_layers, batch_first=True, bidirectional=True)
+
         self.fc = nn.Linear(self.hidden_size*2, 3)
 
     def forward(self, x):
+        out = self.dropouts.input_dropout(x)
         out = self.conv(x)  # (bsz, 64, 25, 2)
         reshape = out.permute(0, 2, 1, 3).contiguous().view(len(out), 25, 128)
         # Set initial states
@@ -77,7 +85,7 @@ class ConvNet(nn.Module):
         return fc_out
 
 
-def diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, data_folder, results_dir, nthreads=8):
+def diffraction_train(num_epochs, batch_size, learning_rate, dropouts, TEST_TO_ALL_RATIO, data_folder, results_dir, nthreads=8):
 
     # initialize dataset
     if not os.path.exists(data_folder):
@@ -108,7 +116,7 @@ def diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, 
                                             batch_size=batch_size,
                                             shuffle=False, num_workers=nthreads)
 
-    model = ConvNet().to(device)
+    model = ConvNet(dropouts).to(device)
 
     # Loss and optimizer
     criterion = nn.MSELoss(reduction='sum')
@@ -177,14 +185,22 @@ def diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, 
             writer.close()
             break  # early stop break
 
+class Dropouts():
+    def __init__(self, input_dropout, conv_dropout, lstm_dropout):
+        self.input_dropout = nn.Dropout(input_dropout)
+        self.conv_dropout = nn.Dropout(conv_dropout)
+        self.lstm_dropout = nn.Dropout(lstm_dropout)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='diffraction_CNNtrain',
                                      description="""Script to train the InstantDiffraction system""")
-    parser.add_argument("--input", "-i", required=True, help="Directory where data and labels are", type=str)
+    parser.add_argument("--input", "-i", required=False, default="data", help="Directory where data and labels are", type=str)
     parser.add_argument("--nthreads", "-n", type=int, default=0, help="Number of threads to use")
     parser.add_argument("--rate", "-r", type=float, default=-1, help="Choose a learning rate, default to sweep")
     parser.add_argument("--batchsize", "-b", type=int, default=-1, help="Choose a batchsize, default to sweep")
+    parser.add_argument("--input_dropout", "-id", type=float, default=0.1, help="Specify input dropout rate")
+    parser.add_argument("--conv_dropout", "-cd", type=float, default=0.1, help="Specify conv dropout rate (applied at all layers)")
+    parser.add_argument("--lstm_dropout", "-ld", type=float, default=0.1, help="Specify conv dropout rate (applied to lstm output)")
     args = parser.parse_args()
 
     # Hyper parameters
@@ -194,6 +210,7 @@ if __name__ == "__main__":
     nworkers = args.nthreads
     rate_select = args.rate
     batch_select = args.batchsize
+    dropouts = Dropouts(args.input_dropout, args.conv_dropout, args.lstm_dropout)
 
     rates = [1e-3, 1e-9, 1e-5, 1e-7]
     batches = [32, 64, 128, 256]
@@ -209,4 +226,4 @@ if __name__ == "__main__":
             # dir to store the experiment files
             results_dir = "results/results" + time.strftime("_%Y_%m_%d_%H_%M_%S") + '_lr{}'.format(learning_rate) + '_bs{}'.format(batch_size)
             print('writing results to {}'.format(results_dir))
-            diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, data_folder, results_dir, nthreads=nworkers)
+            diffraction_train(num_epochs, batch_size, learning_rate, dropouts, TEST_TO_ALL_RATIO, data_folder, results_dir, nthreads=nworkers)
