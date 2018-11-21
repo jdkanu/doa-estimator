@@ -15,13 +15,14 @@ import argparse
 # Device configuration
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
+
 # dataset
 class CustomDataset(Dataset):
     def __init__(self, data_entries):
         self.len = len(data_entries)
         self.internal_data = data_entries
-        self.data_rand = np.random.uniform(0, 1, [6, 25, 513]).astype('f')
-        self.label_rand = np.random.uniform(0, 1, 3).astype('f')
+        # self.data_rand = np.random.uniform(0, 1, [6, 25, 513]).astype('f')
+        # self.label_rand = np.random.uniform(0, 1, 3).astype('f')
 
     def __len__(self):
         return self.len
@@ -75,7 +76,8 @@ class ConvNet(nn.Module):
 
         return fc_out
 
-def diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, data_folder, results_dir, nthreads=8, log_interval=100):
+
+def diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, data_folder, results_dir, nthreads=8):
 
     # initialize dataset
     if not os.path.exists(data_folder):
@@ -83,14 +85,17 @@ def diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, 
         return
     
     labelpath = os.path.join(data_folder, 'labels.csv')
-    f = open(labelpath, 'r')
-    lines = f.readlines()
+    csvfile = open(labelpath, 'r')
+    csv_reader = csv.reader(csvfile, delimiter=',')
+    next(csv_reader, None)
     dataset = []
-    for line in lines:
-        line_arr = line.replace('\n', '').split(',')
-        npypath = os.path.join(data_folder, line_arr[0])
-        if os.path.exists(npypath):
-            dataset.append([npypath, [float(x) for x in line_arr[1:4]]])
+    for line in csv_reader:
+        npypath = os.path.join(data_folder, line[0])
+        # if os.path.exists(npypath):
+        dataset.append([npypath, [float(x) for x in line[1:4]]])
+        # if len(dataset)>1000:
+        #     break
+
     train_data_entries, val_data_entries = train_test_split(dataset, test_size=TEST_TO_ALL_RATIO)
     train_dataset = CustomDataset(train_data_entries)
     val_dataset = CustomDataset(val_data_entries)
@@ -98,7 +103,7 @@ def diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, 
     # initialize Data loader
     train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                batch_size=batch_size,
-                                               shuffle=False, num_workers=nthreads)
+                                               shuffle=True, num_workers=nthreads)
     val_loader = torch.utils.data.DataLoader(dataset=val_dataset,
                                             batch_size=batch_size,
                                             shuffle=False, num_workers=nthreads)
@@ -115,7 +120,7 @@ def diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, 
 
     # Train the model
     ts = time.time()
-    num_iterations_before_early_stop = 5
+    num_iterations_before_early_stop = 1
     early_stop_flag = False
     early_stop_cnt = 0
     lowest_error = 1e6
@@ -123,8 +128,11 @@ def diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, 
     for epoch in range(num_epochs):
         if not early_stop_flag:
             model.train()
-            for i, (image, labels) in enumerate(train_loader):
-                outputs = model(image)
+            for i, (images, labels) in enumerate(train_loader):
+                # Forward pass
+                images = images.float().to(device)
+                labels = labels.float().to(device)
+                outputs = model(images)
                 loss = criterion(outputs, labels)
 
                 # Backward and optimize
@@ -139,56 +147,66 @@ def diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, 
                     print('[Training] Epoch [{}/{}], Step [{}/{}], Loss: {:.8f}, time elapsed: {:.2f} seconds'
                           .format(epoch + 1, num_epochs, i + 1, total_step, loss.item() / len(labels), time.time()-ts))
 
-                if (i+1) % log_interval == 0:
-                    # Use val set to test the model at each epoch
-                    model.eval()  # eval mode (batchnorm uses moving mean/variance instead of mini-batch mean/variance)
-                    with torch.no_grad():
-                        total_val_loss = 0
-                        total_labels = 0
-                        for images, labels in val_loader:
-                            images = images.float().to(device)
-                            labels = labels.float().to(device)
-                            outputs = model(images)
-                            loss = criterion(outputs, labels)
-                            total_val_loss += loss
-                            total_labels += len(labels)
-                        average_val_loss = total_val_loss.item() / total_labels
-                        writer.add_scalar("val_loss", average_val_loss, niter)
-                        print('[Validation] Test Accuracy of the model at Epoch {}, iter {} : {:.8f}'.format(epoch + 1, niter, average_val_loss))
+            # Use val set to test the model at each epoch
+            model.eval()  # eval mode (batchnorm uses moving mean/variance instead of mini-batch mean/variance)
+            with torch.no_grad():
+                total_val_loss = 0
+                total_labels = 0
+                for images, labels in val_loader:
+                    images = images.float().to(device)
+                    labels = labels.float().to(device)
+                    outputs = model(images)
+                    loss = criterion(outputs, labels)
+                    total_val_loss += loss
+                    total_labels += len(labels)
+                average_val_loss = total_val_loss.item() / total_labels
+                writer.add_scalar("val_loss", average_val_loss, epoch)
+                print('[Validation] Test Accuracy of the model at Epoch {}: {:.8f}'.format(epoch + 1, average_val_loss))
 
-                        # remember lowest error
-                        if average_val_loss < lowest_error:
-                            lowest_error = average_val_loss
-                            early_stop_cnt = 0
-                            torch.save(model.state_dict(), os.path.join(results_dir, "best_valid.pth"))
-                        else:
-                            early_stop_cnt += 1
-                            if early_stop_cnt >= num_iterations_before_early_stop:
-                                early_stop_flag = True
-
+            # remember lowest error
+            if average_val_loss < lowest_error:
+                lowest_error = average_val_loss
+                early_stop_cnt = 0
+                torch.save(model.state_dict(), os.path.join(results_dir, "best_valid.pth"))
+            else:
+                early_stop_cnt += 1
+                if early_stop_cnt >= num_iterations_before_early_stop:
+                    early_stop_flag = True
         else:
             print("=> early stop with val error {:.8f}".format(lowest_error))
             writer.close()
             break  # early stop break
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='diffraction_CNNtrain',
                                      description="""Script to train the InstantDiffraction system""")
-    # parser.add_argument("--input", "-i", required=True, help="Directory where data and labels are", type=str)
-    parser.add_argument("--nthreads", "-n", type=int, default=1, help="Number of threads to use")
-
+    parser.add_argument("--input", "-i", required=True, help="Directory where data and labels are", type=str)
+    parser.add_argument("--nthreads", "-n", type=int, default=0, help="Number of threads to use")
+    parser.add_argument("--rate", "-r", type=float, default=-1, help="Choose a learning rate, default to sweep")
+    parser.add_argument("--batchsize", "-b", type=int, default=-1, help="Choose a batchsize, default to sweep")
     args = parser.parse_args()
 
     # Hyper parameters
     num_epochs = 5
-    batch_size = 10
-    TEST_TO_ALL_RATIO = 0.1
-    data_folder = "data"
+    TEST_TO_ALL_RATIO = 0.01
+    data_folder = args.input
     nworkers = args.nthreads
+    rate_select = args.rate
+    batch_select = args.batchsize
 
-    rates = [1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2]
+    rates = [1e-3, 1e-9, 1e-5, 1e-7]
+    batches = [32, 64, 128, 256]
+
+    if torch.cuda.is_available():
+        torch.set_default_tensor_type('torch.cuda.FloatTensor')
+    if rate_select > 0:
+        rates = [rate_select]
+    if batch_select > 0:
+        batches = [batch_select]
     for learning_rate in rates:
-        # dir to store the experiment files
-        results_dir = "results/results" + time.strftime("_%Y_%m_%d_%H_%M_%S") + '_lr{}'.format(learning_rate)
-        print('writing results to {}'.format(results_dir))
-        diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, data_folder, results_dir, nthreads=nworkers)
+        for batch_size in batches:
+            # dir to store the experiment files
+            results_dir = "results/results" + time.strftime("_%Y_%m_%d_%H_%M_%S") + '_lr{}'.format(learning_rate) + '_bs{}'.format(batch_size)
+            print('writing results to {}'.format(results_dir))
+            diffraction_train(num_epochs, batch_size, learning_rate, TEST_TO_ALL_RATIO, data_folder, results_dir, nthreads=nworkers)
