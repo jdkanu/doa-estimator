@@ -11,10 +11,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import scale
 from itertools import compress
 import argparse
+from model import CRNN, ConvNet
 
 # Device configuration
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
 
 # dataset
 class CustomDataset(Dataset):
@@ -37,53 +37,6 @@ class CustomDataset(Dataset):
         label = np.array(self.internal_data[index][1:4]).astype("float32")
 
         return data, label[0]
-
-class ConvNet(nn.Module):
-    def __init__(self, dropouts):
-        super(ConvNet, self).__init__()
-        self.dropouts = dropouts
-        conv_layers = [
-            nn.Conv2d(6, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=(1, 8), stride=(1, 8)),  # (bsz, 64, 25, 64)
-
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=(1, 8), stride=(1, 8)),  # (bsz, 64, 25, 8)
-
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=(1, 4), stride=(1, 4)),  # (bsz, 64, 25, 2)
-        ]
-        modules = []
-        for layer in conv_layers:
-            modules.append(layer)
-            modules.append(dropouts.conv_dropout)
-        self.conv = nn.Sequential(*modules)
-
-        # from https://github.com/yunjey/pytorch-tutorial/blob/master/tutorials/02-intermediate/bidirectional_recurrent_neural_network/main.py
-        self.hidden_size = 64
-        self.num_layers = 2
-        self.lstm = nn.LSTM(input_size=128, hidden_size=self.hidden_size, num_layers=self.num_layers, batch_first=True, bidirectional=True)
-
-        self.fc = nn.Linear(self.hidden_size*2, 3)
-
-    def forward(self, x):
-        out = self.dropouts.input_dropout(x)
-        out = self.conv(x)  # (bsz, 64, 25, 2)
-        reshape = out.permute(0, 2, 1, 3).contiguous().view(len(out), 25, 128)
-        # Set initial states
-        h0 = torch.zeros(self.num_layers*2, reshape.size(0), self.hidden_size).to(device) # 2 for bidirection 
-        c0 = torch.zeros(self.num_layers*2, reshape.size(0), self.hidden_size).to(device)
-
-        lstm_out, _ = self.lstm(reshape, (h0, c0))
-        fc_out = self.fc(lstm_out[:, -1, :]) # NOTE: revisit to use more than just the last LSTM output
-
-        return fc_out
-
 
 def diffraction_train(num_epochs, batch_size, learning_rate, dropouts, TEST_TO_ALL_RATIO, data_folder, results_dir, nthreads=8):
 
@@ -116,7 +69,7 @@ def diffraction_train(num_epochs, batch_size, learning_rate, dropouts, TEST_TO_A
                                             batch_size=batch_size,
                                             shuffle=False, num_workers=nthreads)
 
-    model = ConvNet(dropouts).to(device)
+    model = CRNN(device, dropouts).to(device)
 
     # Loss and optimizer
     criterion = nn.MSELoss(reduction='sum')
@@ -200,7 +153,7 @@ if __name__ == "__main__":
     parser.add_argument("--batchsize", "-b", type=int, default=-1, help="Choose a batchsize, default to sweep")
     parser.add_argument("--input_dropout", "-id", type=float, default=0.1, help="Specify input dropout rate")
     parser.add_argument("--conv_dropout", "-cd", type=float, default=0.1, help="Specify conv dropout rate (applied at all layers)")
-    parser.add_argument("--lstm_dropout", "-ld", type=float, default=0.1, help="Specify conv dropout rate (applied to lstm output)")
+    parser.add_argument("--lstm_dropout", "-ld", type=float, default=0.1, help="Specify lstm dropout rate (applied to lstm output)")
     args = parser.parse_args()
 
     # Hyper parameters

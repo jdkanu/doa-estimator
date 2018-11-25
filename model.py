@@ -1,0 +1,84 @@
+import torch.nn as nn
+import torch
+
+class CRNN(nn.Module):
+    def __init__(self, device, dropouts):
+        super(CRNN, self).__init__()
+        self.device = device
+        self.dropouts = dropouts
+        conv_layers = [
+            nn.Conv2d(6, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=(1, 8), stride=(1, 8)),  # (bsz, 64, 25, 64)
+
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=(1, 8), stride=(1, 8)),  # (bsz, 64, 25, 8)
+
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=(1, 4), stride=(1, 4)),  # (bsz, 64, 25, 2)
+        ]
+        modules = []
+        for layer in conv_layers:
+            modules.append(layer)
+            modules.append(dropouts.conv_dropout)
+        self.conv = nn.Sequential(*modules)
+
+        # from https://github.com/yunjey/pytorch-tutorial/blob/master/tutorials/02-intermediate/bidirectional_recurrent_neural_network/main.py
+        self.hidden_size = 64
+        self.num_layers = 2
+        self.lstm = nn.LSTM(input_size=128, hidden_size=self.hidden_size, num_layers=self.num_layers, batch_first=True, bidirectional=True)
+
+        self.fc = nn.Linear(self.hidden_size*2, 3)
+
+    def forward(self, x):
+        out = self.dropouts.input_dropout(x)
+        out = self.conv(x)  # (bsz, 64, 25, 2)
+        reshape = out.permute(0, 2, 1, 3).contiguous().view(len(out), 25, 128)
+        # Set initial states
+        h0 = torch.zeros(self.num_layers*2, reshape.size(0), self.hidden_size).to(self.device) # 2 for bidirection 
+        c0 = torch.zeros(self.num_layers*2, reshape.size(0), self.hidden_size).to(self.device)
+
+        lstm_out, _ = self.lstm(reshape, (h0, c0))
+        fc_out = self.fc(lstm_out[:, -1, :]) # NOTE: revisit to use more than just the last LSTM output
+
+        return fc_out
+
+class ConvNet(nn.Module):
+    def __init__(self, device, dropouts):
+        super(ConvNet, self).__init__()
+        self.device = device
+        self.dropouts = dropouts
+        conv_layers = [
+            nn.Conv2d(6, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=(1, 8), stride=(1, 8)),  # (bsz, 64, 25, 64)
+
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=(1, 8), stride=(1, 8)),  # (bsz, 64, 25, 8)
+
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=(1, 4), stride=(1, 4)),  # (bsz, 64, 25, 2)
+        ]
+        modules = []
+        for layer in conv_layers:
+            modules.append(layer)
+            modules.append(dropouts.conv_dropout)
+        self.conv = nn.Sequential(*modules)
+        self.fc = nn.Linear(64*25*2, 3)
+
+    def forward(self, x):
+        out = self.dropouts.input_dropout(x)
+        out = self.conv(x)  # (bsz, 64, 25, 2)
+        flattened = out.view(len(out), 64*25*2)
+        fc_out = self.fc(flattened)
+        return fc_out
