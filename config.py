@@ -16,10 +16,6 @@ class TrainConfig():
     def set_batch_size(self, batch_size):
         self.batch_size = batch_size
         return self
-
-    def set_dropouts(self, dropouts):
-        self.dropouts = dropouts
-        return self
     
     def set_num_epochs(self, num_epochs):
         self.num_epochs = num_epochs
@@ -31,6 +27,10 @@ class TrainConfig():
 
     def set_results_dir(self, results_dir):
         self.results_dir = results_dir
+        return self
+
+    def set_model(self, model):
+        self.model = model
         return self
 
 class Dropouts():

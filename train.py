@@ -70,12 +70,10 @@ def diffraction_train(config):
                                             batch_size=config.batch_size,
                                             shuffle=False, num_workers=config.num_threads)
 
-    model = ConvNet(device, config.dropouts).to(device)
-
     # Loss and optimizer
     criterion = nn.MSELoss(reduction='sum')
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
-    # optimizer = torch.optim.Adadelta(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.Adam(config.model.parameters(), lr=config.learning_rate)
+    # optimizer = torch.optim.Adadelta(config.model.parameters(), lr=learning_rate)
 
     os.makedirs(config.results_dir)
     writer = SummaryWriter(config.results_dir)
@@ -89,12 +87,12 @@ def diffraction_train(config):
     total_step = len(train_loader)
     for epoch in range(config.num_epochs):
         if not early_stop_flag:
-            model.train()
+            config.model.train()
             for i, (images, labels) in enumerate(train_loader):
                 # Forward pass
                 images = images.float().to(device)
                 labels = labels.float().to(device)
-                outputs = model(images)
+                outputs = config.model(images)
                 loss = criterion(outputs, labels)
 
                 # Backward and optimize
@@ -110,14 +108,14 @@ def diffraction_train(config):
                           .format(epoch + 1, config.num_epochs, i + 1, total_step, loss.item() / len(labels), time.time()-ts))
 
             # Use val set to test the model at each epoch
-            model.eval()  # eval mode (batchnorm uses moving mean/variance instead of mini-batch mean/variance)
+            config.model.eval()  # eval mode (batchnorm uses moving mean/variance instead of mini-batch mean/variance)
             with torch.no_grad():
                 total_val_loss = 0
                 total_labels = 0
                 for images, labels in val_loader:
                     images = images.float().to(device)
                     labels = labels.float().to(device)
-                    outputs = model(images)
+                    outputs = config.model(images)
                     loss = criterion(outputs, labels)
                     total_val_loss += loss
                     total_labels += len(labels)
@@ -129,7 +127,7 @@ def diffraction_train(config):
             if average_val_loss < lowest_error:
                 lowest_error = average_val_loss
                 early_stop_cnt = 0
-                torch.save(model.state_dict(), os.path.join(config.results_dir, "best_valid.pth"))
+                torch.save(config.model.state_dict(), os.path.join(config.results_dir, "best_valid.pth"))
             else:
                 early_stop_cnt += 1
                 if early_stop_cnt >= num_iterations_before_early_stop:
@@ -154,6 +152,7 @@ if __name__ == "__main__":
     parser.add_argument("--lstm_dropout", "-ld", type=float, default=0., help="Specify lstm dropout rate (applied to lstm output)")
     args = parser.parse_args()
 
+    dropouts = Dropouts(args.input_dropout, args.conv_dropout, args.lstm_dropout)
     rates = [1e-3, 1e-9, 1e-5, 1e-7] if not args.rate else args.rate
     batches = [32, 64, 128, 256] if not args.batchsize else args.batchsize
     for learning_rate in rates:
@@ -167,8 +166,8 @@ if __name__ == "__main__":
                         .set_num_threads(args.nthreads) \
                         .set_learning_rate(learning_rate) \
                         .set_batch_size(batch_size) \
-                        .set_dropouts(Dropouts(args.input_dropout, args.conv_dropout, args.lstm_dropout)) \
                         .set_num_epochs(5) \
                         .set_test_to_all_ratio(0.01) \
-                        .set_results_dir(results_dir)
+                        .set_results_dir(results_dir) \
+                        .set_model(CRNN(device, dropouts).to(device))
             diffraction_train(config)
