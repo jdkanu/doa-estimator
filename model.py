@@ -37,7 +37,7 @@ class CRNN(nn.Module):
 
     def forward(self, x):
         out = self.dropouts.input_dropout(x)
-        out = self.conv(x)  # (bsz, 64, 25, 2)
+        out = self.conv(out)  # (bsz, 64, 25, 2)
         reshape = out.permute(0, 2, 1, 3).contiguous().view(len(out), 25, 128)
         # Set initial states
         h0 = torch.zeros(self.num_layers*2, reshape.size(0), self.hidden_size).to(self.device) # 2 for bidirection 
@@ -78,7 +78,7 @@ class ConvNet(nn.Module):
 
     def forward(self, x):
         out = self.dropouts.input_dropout(x)
-        out = self.conv(x)  # (bsz, 64, 25, 2)
+        out = self.conv(out)  # (bsz, 64, 25, 2)
         flattened = out.view(len(out), 64*25*2)
         fc_out = self.fc(flattened)
         return fc_out

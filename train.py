@@ -151,9 +151,9 @@ if __name__ == "__main__":
     parser.add_argument("--nthreads", "-n", type=int, default=0, help="Number of threads to use")
     parser.add_argument("--rate", "-r", type=float, default=-1, help="Choose a learning rate, default to sweep")
     parser.add_argument("--batchsize", "-b", type=int, default=-1, help="Choose a batchsize, default to sweep")
-    parser.add_argument("--input_dropout", "-id", type=float, default=0.1, help="Specify input dropout rate")
-    parser.add_argument("--conv_dropout", "-cd", type=float, default=0.1, help="Specify conv dropout rate (applied at all layers)")
-    parser.add_argument("--lstm_dropout", "-ld", type=float, default=0.1, help="Specify lstm dropout rate (applied to lstm output)")
+    parser.add_argument("--input_dropout", "-id", type=float, default=0., help="Specify input dropout rate")
+    parser.add_argument("--conv_dropout", "-cd", type=float, default=0., help="Specify conv dropout rate (applied at all layers)")
+    parser.add_argument("--lstm_dropout", "-ld", type=float, default=0., help="Specify lstm dropout rate (applied to lstm output)")
     args = parser.parse_args()
 
     # Hyper parameters
