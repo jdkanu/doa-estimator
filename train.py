@@ -58,7 +58,7 @@ def diffraction_train(config):
         # if len(dataset)>1000:
         #     break
 
-    train_data_entries, val_data_entries = train_test_split(dataset, test_size=config.test_to_all_ratio)
+    train_data_entries, val_data_entries = train_test_split(dataset, test_size=config.test_to_all_ratio, random_state=11)
     train_dataset = CustomDataset(train_data_entries)
     val_dataset = CustomDataset(val_data_entries)
 
@@ -80,7 +80,7 @@ def diffraction_train(config):
 
     # Train the model
     ts = time.time()
-    num_iterations_before_early_stop = 1
+    num_iterations_before_early_stop = 2
     early_stop_flag = False
     early_stop_cnt = 0
     lowest_error = 1e6
@@ -153,8 +153,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     dropouts = Dropouts(args.input_dropout, args.conv_dropout, args.lstm_dropout)
-    rates = [1e-3, 1e-9, 1e-5, 1e-7] if not args.rate else args.rate
-    batches = [32, 64, 128, 256] if not args.batchsize else args.batchsize
+    rates = [1e-3, 1e-9, 1e-5, 1e-7] if not args.rate else [args.rate]
+    batches = [32, 64, 128, 256] if not args.batchsize else [args.batchsize]
     for learning_rate in rates:
         for batch_size in batches:
             # dir to store the experiment files
@@ -166,8 +166,8 @@ if __name__ == "__main__":
                         .set_num_threads(args.nthreads) \
                         .set_learning_rate(learning_rate) \
                         .set_batch_size(batch_size) \
-                        .set_num_epochs(5) \
-                        .set_test_to_all_ratio(0.01) \
+                        .set_num_epochs(50) \
+                        .set_test_to_all_ratio(0.1) \
                         .set_results_dir(results_dir) \
-                        .set_model(CRNN(device, dropouts).to(device))
+                        .set_model(ConvNet(device, dropouts).to(device))
             diffraction_train(config)
