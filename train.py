@@ -13,6 +13,7 @@ from itertools import compress
 import argparse
 from model import CRNN, ConvNet
 from config import TrainConfig, Dropouts
+from util import generate_direction_classes
 
 # Device configuration
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
