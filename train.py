@@ -153,8 +153,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     dropouts = Dropouts(args.input_dropout, args.conv_dropout, args.lstm_dropout)
-    rates = [1e-3, 1e-9, 1e-5, 1e-7] if not args.rate else args.rate
-    batches = [32, 64, 128, 256] if not args.batchsize else args.batchsize
+    rates = [1e-3, 1e-9, 1e-5, 1e-7] if not args.rate else [args.rate]
+    batches = [32, 64, 128, 256] if not args.batchsize else [args.batchsize]
     for learning_rate in rates:
         for batch_size in batches:
             # dir to store the experiment files
