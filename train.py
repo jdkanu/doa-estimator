@@ -13,6 +13,7 @@ from itertools import compress
 import argparse
 from model import CRNN, ConvNet
 from config import TrainConfig, Dropouts
+from doa_classes import DoaClasses
 
 # Device configuration
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -178,6 +179,7 @@ if __name__ == "__main__":
     dropouts = Dropouts(args.dropout, args.dropout, args.dropout)
     rates = [1e-5, 1e-7, 1e-3, 1e-9, 1e-1] if not args.rate else [args.rate]
     batches = [128, 32, 64] if not args.batchsize else [args.batchsize]
+
     for learning_rate in rates:
         for batch_size in batches:
             # dir to store the experiment files
