@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 
 class CRNN(nn.Module):
-    def __init__(self, device, dropouts, output_dimension):
+    def __init__(self, device, dropouts, output_dimension, is_classifier):
         super(CRNN, self).__init__()
         self.device = device
         self.dropouts = dropouts
@@ -35,6 +35,7 @@ class CRNN(nn.Module):
 
         self.fc1 = nn.Linear(self.hidden_size*2, self.hidden_size*2)
         self.fc2 = nn.Linear(self.hidden_size*2, output_dimension)
+        self.softmax = nn.Softmax(1) if is_classifier else None
 
     def forward(self, x):
         out = self.dropouts.input_dropout(x)
@@ -46,7 +47,7 @@ class CRNN(nn.Module):
 
         lstm_out, _ = self.lstm(reshape, (h0, c0))
         fc_out = self.fc2(self.fc1(lstm_out[:, -1, :])) # NOTE: revisit to use more than just the last LSTM output
-        return fc_out
+        return self.softmax(fc_out) if self.softmax else fc_out
 
 class ConvNet(nn.Module):
     def __init__(self, device, dropouts):

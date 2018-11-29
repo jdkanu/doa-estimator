@@ -197,11 +197,11 @@ if __name__ == "__main__":
                 model_choice = ConvNet(device, dropouts).to(device)
                 loss = nn.MSELoss(reduction='sum')
             elif args.model == "CRNNReg":
-                model_choice = CRNN(device, dropouts, 3).to(device)
+                model_choice = CRNN(device, dropouts, 3, False).to(device)
                 loss = nn.MSELoss(reduction='sum')
             elif args.model == "CRNNClass":
                 doa_classes = DoaClasses()
-                model_choice = CRNN(device, dropouts, len(doa_classes.classes)).to(device)
+                model_choice = CRNN(device, dropouts, len(doa_classes.classes), True).to(device)
                 loss = nn.CrossEntropyLoss()
 
             config = TrainConfig() \
