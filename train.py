@@ -155,6 +155,7 @@ def diffraction_train(config):
             print("=> early stop with val error {:.8f}".format(lowest_error))
             writer.close()
             break  # early stop break
+    return lowest_error
 
 
 if __name__ == "__main__":
