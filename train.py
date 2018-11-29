@@ -85,7 +85,8 @@ def diffraction_train(config):
     optimizer = torch.optim.Adam(config.model.parameters(), lr=config.learning_rate)
     # optimizer = torch.optim.Adadelta(config.model.parameters(), lr=learning_rate)
 
-    os.makedirs(config.results_dir)
+    if not os.path.exists(config.results_dir):
+        os.makedirs(config.results_dir)
     writer = SummaryWriter(config.results_dir)
     angle_observations = np.array([5, 10, 15, 30])
 
@@ -155,6 +156,7 @@ def diffraction_train(config):
             print("=> early stop with val error {:.8f}".format(lowest_error))
             writer.close()
             break  # early stop break
+    return lowest_error
 
 
 if __name__ == "__main__":
