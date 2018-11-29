@@ -178,7 +178,8 @@ if __name__ == "__main__":
     # parser.add_argument("--input_dropout", "-id", type=float, default=0., help="Specify input dropout rate")
     # parser.add_argument("--conv_dropout", "-cd", type=float, default=0., help="Specify conv dropout rate (applied at all layers)")
     # parser.add_argument("--lstm_dropout", "-ld", type=float, default=0., help="Specify lstm dropout rate (applied to lstm output)")
-    parser.add_argument("--model", "-m", type=str, choices=["CNN", "CRNNReg", "CRNNClass"], required=True, help="Choose network model")
+    parser.add_argument("--model", "-m", type=str, choices=["CNN", "CRNN"], required=True, help="Choose network model")
+    parser.add_argument("--outputformulation", "-of", type=str, choices=["Reg", "Class"], required=True, help="Choose output formulation")
     args = parser.parse_args()
 
     # dropouts = Dropouts(args.input_dropout, args.conv_dropout, args.lstm_dropout)
@@ -189,20 +190,24 @@ if __name__ == "__main__":
     for learning_rate in rates:
         for batch_size in batches:
             # dir to store the experiment files
-            results_dir = os.path.join(args.savedir, "results" + '_{}'.format(args.model) + '_lr{}'.format(learning_rate) + '_bs{}'.format(batch_size) + '_drop{}'.format(args.dropout))
+            results_dir = os.path.join(args.savedir, \
+                "results" + '_{}'.format(args.model) + '_{}'.format(args.outputformulation) + \
+                '_lr{}'.format(learning_rate) + '_bs{}'.format(batch_size) + '_drop{}'.format(args.dropout))
             print('writing results to {}'.format(results_dir))
 
             doa_classes = None
-            if args.model == "CNN":
-                model_choice = ConvNet(device, dropouts).to(device)
+            if args.outputformulation == "Reg":
                 loss = nn.MSELoss(reduction='sum')
-            elif args.model == "CRNNReg":
-                model_choice = CRNN(device, dropouts, 3, False).to(device)
-                loss = nn.MSELoss(reduction='sum')
-            elif args.model == "CRNNClass":
-                doa_classes = DoaClasses()
-                model_choice = CRNN(device, dropouts, len(doa_classes.classes), True).to(device)
+                output_dimension = 3
+            elif args.outputformulation == "Class":
                 loss = nn.CrossEntropyLoss()
+                doa_classes = DoaClasses()
+                output_dimension = len(doa_classes.classes)
+
+            if args.model == "CNN":
+                model_choice = ConvNet(device, dropouts, output_dimension, doa_classes).to(device)
+            elif args.model == "CRNN":
+                model_choice = CRNN(device, dropouts, output_dimension, doa_classes).to(device)
 
             config = TrainConfig() \
                         .set_data_folder(args.input) \

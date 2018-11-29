@@ -50,7 +50,7 @@ class CRNN(nn.Module):
         return self.softmax(fc_out) if self.softmax else fc_out
 
 class ConvNet(nn.Module):
-    def __init__(self, device, dropouts):
+    def __init__(self, device, dropouts, output_dimension, is_classifier):
         super(ConvNet, self).__init__()
         self.device = device
         self.dropouts = dropouts
@@ -75,11 +75,12 @@ class ConvNet(nn.Module):
             modules.append(layer)
             modules.append(dropouts.conv_dropout)
         self.conv = nn.Sequential(*modules)
-        self.fc = nn.Linear(64*25*2, 3)
+        self.fc = nn.Linear(64*25*2, output_dimension)
+        self.softmax = nn.Softmax(1) if is_classifier else None
 
     def forward(self, x):
         out = self.dropouts.input_dropout(x)
         out = self.conv(out)  # (bsz, 64, 25, 2)
         flattened = out.view(len(out), 64*25*2)
         fc_out = self.fc(flattened)
-        return fc_out
+        return self.softmax(fc_out) if self.softmax else fc_out
