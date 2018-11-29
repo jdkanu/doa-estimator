@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 
 class CRNN(nn.Module):
-    def __init__(self, device, dropouts):
+    def __init__(self, device, dropouts, output_dimension):
         super(CRNN, self).__init__()
         self.device = device
         self.dropouts = dropouts
@@ -33,9 +33,8 @@ class CRNN(nn.Module):
         self.num_layers = 2
         self.lstm = nn.LSTM(input_size=128, hidden_size=self.hidden_size, num_layers=self.num_layers, batch_first=True, bidirectional=True)
 
-#        self.fc = nn.Linear(self.hidden_size*2, 3)
         self.fc1 = nn.Linear(self.hidden_size*2, self.hidden_size*2)
-        self.fc2 = nn.Linear(self.hidden_size*2, 3)
+        self.fc2 = nn.Linear(self.hidden_size*2, output_dimension)
 
     def forward(self, x):
         out = self.dropouts.input_dropout(x)
@@ -46,8 +45,7 @@ class CRNN(nn.Module):
         c0 = torch.zeros(self.num_layers*2, reshape.size(0), self.hidden_size).to(self.device)
 
         lstm_out, _ = self.lstm(reshape, (h0, c0))
-#        fc_out = self.fc(lstm_out[:, -1, :]) # NOTE: revisit to use more than just the last LSTM output
-        fc_out = self.fc2(self.fc1(lstm_out[:, -1, :]))
+        fc_out = self.fc2(self.fc1(lstm_out[:, -1, :])) # NOTE: revisit to use more than just the last LSTM output
         return fc_out
 
 class ConvNet(nn.Module):

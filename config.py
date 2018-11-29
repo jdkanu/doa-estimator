@@ -33,6 +33,14 @@ class TrainConfig():
         self.model = model
         return self
 
+    def set_loss_criterion(self, loss_criterion):
+        self.loss_criterion = loss_criterion
+        return self
+
+    def set_doa_classes(self, doa_classes):
+        self.doa_classes = doa_classes
+        return self
+
 class Dropouts():
     def __init__(self, input_dropout, conv_dropout, lstm_dropout):
         self.input_dropout = nn.Dropout(input_dropout)

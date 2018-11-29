@@ -31,9 +31,10 @@ def TensorAngles(a, b):
 
 # dataset
 class CustomDataset(Dataset):
-    def __init__(self, data_entries):
+    def __init__(self, data_entries, train_config):
         self.len = len(data_entries)
         self.internal_data = data_entries
+        self.train_config = train_config
 
     def __len__(self):
         return self.len
@@ -45,9 +46,12 @@ class CustomDataset(Dataset):
             print(str(e))
             print("Error loading: " + str(index))
         data = np.moveaxis(data, -1, 0)
-        label = np.array(self.internal_data[index][1:4]).astype("float32")
 
-        return data, label[0]
+        label = np.array(self.internal_data[index][1:4]).astype("float32")[0]
+        if self.train_config.doa_classes:
+            label = self.train_config.doa_classes.index_for_xyz(label)
+
+        return data, label
 
 def diffraction_train(config):
 
@@ -69,8 +73,8 @@ def diffraction_train(config):
         #     break
 
     train_data_entries, val_data_entries = train_test_split(dataset, test_size=config.test_to_all_ratio, random_state=11)
-    train_dataset = CustomDataset(train_data_entries)
-    val_dataset = CustomDataset(val_data_entries)
+    train_dataset = CustomDataset(train_data_entries, config)
+    val_dataset = CustomDataset(val_data_entries, config)
 
     # initialize Data loader
     train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
@@ -81,7 +85,7 @@ def diffraction_train(config):
                                             shuffle=False, num_workers=0)
 
     # Loss and optimizer
-    criterion = nn.MSELoss(reduction='sum')
+    criterion = config.loss_criterion
     optimizer = torch.optim.Adam(config.model.parameters(), lr=config.learning_rate)
     # optimizer = torch.optim.Adadelta(config.model.parameters(), lr=learning_rate)
 
@@ -103,7 +107,7 @@ def diffraction_train(config):
             for i, (images, labels) in enumerate(train_loader):
                 # Forward pass
                 images = images.float().to(device)
-                labels = labels.float().to(device)
+                labels = labels.to(device) if config.doa_classes else labels.float().to(device)
                 outputs = config.model(images)
                 loss = criterion(outputs, labels)
 
@@ -127,7 +131,7 @@ def diffraction_train(config):
                 angle_cnts = np.zeros(shape=angle_observations.shape)
                 for images, labels in val_loader:
                     images = images.float().to(device)
-                    labels = labels.float().to(device)
+                    labels = labels.to(device) if config.doa_classes else labels.float().to(device)
                     outputs = config.model(images)
                     loss = criterion(outputs, labels)
                     total_val_loss += loss
@@ -174,7 +178,7 @@ if __name__ == "__main__":
     # parser.add_argument("--input_dropout", "-id", type=float, default=0., help="Specify input dropout rate")
     # parser.add_argument("--conv_dropout", "-cd", type=float, default=0., help="Specify conv dropout rate (applied at all layers)")
     # parser.add_argument("--lstm_dropout", "-ld", type=float, default=0., help="Specify lstm dropout rate (applied to lstm output)")
-    parser.add_argument("--model", "-m", type=str, choices=["CNN", "CRNN"], required=True, help="Choose network model")
+    parser.add_argument("--model", "-m", type=str, choices=["CNN", "CRNNReg", "CRNNClass"], required=True, help="Choose network model")
     args = parser.parse_args()
 
     # dropouts = Dropouts(args.input_dropout, args.conv_dropout, args.lstm_dropout)
@@ -188,10 +192,17 @@ if __name__ == "__main__":
             results_dir = os.path.join(args.savedir, "results" + '_{}'.format(args.model) + '_lr{}'.format(learning_rate) + '_bs{}'.format(batch_size) + '_drop{}'.format(args.dropout))
             print('writing results to {}'.format(results_dir))
 
+            doa_classes = None
             if args.model == "CNN":
                 model_choice = ConvNet(device, dropouts).to(device)
-            elif args.model == "CRNN":
-                model_choice = CRNN(device, dropouts).to(device)
+                loss = nn.MSELoss(reduction='sum')
+            elif args.model == "CRNNReg":
+                model_choice = CRNN(device, dropouts, 3).to(device)
+                loss = nn.MSELoss(reduction='sum')
+            elif args.model == "CRNNClass":
+                doa_classes = DoaClasses()
+                model_choice = CRNN(device, dropouts, len(doa_classes.classes)).to(device)
+                loss = nn.CrossEntropyLoss()
 
             config = TrainConfig() \
                         .set_data_folder(args.input) \
@@ -200,5 +211,7 @@ if __name__ == "__main__":
                         .set_num_epochs(args.epochs) \
                         .set_test_to_all_ratio(0.1) \
                         .set_results_dir(results_dir) \
-                        .set_model(model_choice)
+                        .set_model(model_choice) \
+                        .set_loss_criterion(loss) \
+                        .set_doa_classes(doa_classes)
             diffraction_train(config)
