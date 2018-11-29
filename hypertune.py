@@ -2,6 +2,7 @@ from bayes_opt import BayesianOptimization
 from bayes_opt.observer import JSONLogger
 from bayes_opt.event import Events
 
+import torch
 from train import diffraction_train
 from config import TrainConfig, Dropouts
 import argparse
@@ -15,7 +16,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 # Ugly way of defining fixed parameters
 savedir = '/playpen/zytang/hypertune'
 inputdir = '/playpen/zytang/Ambisonic_houses_features'
-batch_size = 256
+batch_size = 64
 modelname = 'CRNN'
 dropout = 0
 epochs = 50
@@ -49,7 +50,7 @@ def black_box_function(learning_rate):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='hypertune',
                                      description="""Script to tune hyperparameters for deep learning""")
-    parser.add_argument("--logdir", "-l", default=".", help="Directory to write logfiles", type=str)
+    parser.add_argument("--logdir", "-l", default=savedir, help="Directory to write logfiles", type=str)
     args = parser.parse_args()
 
     if not os.path.exists(args.logdir):
