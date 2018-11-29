@@ -16,10 +16,10 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 # Ugly way of defining fixed parameters
 savedir = '/playpen/zytang/hypertune'
 inputdir = '/playpen/zytang/Ambisonic_houses_features'
-batch_size = 64
+batch_size = 512
 modelname = 'CRNN'
 dropout = 0
-epochs = 50
+epochs = 30
 
 
 def black_box_function(learning_rate):
@@ -55,7 +55,7 @@ if __name__ == "__main__":
 
     if not os.path.exists(args.logdir):
         os.makedirs(args.logdir)
-    logpath = os.path.join(args.logdir, 'logs_{}.json'.format(time.strftime("_%Y_%m_%d_%H_%M_%S")))
+    logpath = os.path.join(args.logdir, 'logs_bs{}_{}.json'.format(batch_size, time.strftime("%Y_%m_%d_%H_%M_%S")))
     print('writing log file to {}'.format(logpath))
 
     # Bounded region of parameter space
