@@ -53,12 +53,13 @@ class CustomDataset(Dataset):
 
         return data, label
 
+
 def doa_train(config):
 
     # initialize dataset
     if not os.path.exists(config.data_folder):
         print("data folder non-exist")
-        return
+        return 100
     
     labelpath = os.path.join(config.data_folder, 'labels.csv')
     csvfile = open(labelpath, 'r')

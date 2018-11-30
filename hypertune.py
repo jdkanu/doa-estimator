@@ -44,9 +44,9 @@ def black_box_function(lr_pow):
         output_dimension = len(doa_classes.classes)
 
     if modelname == "CNN":
-        model_choice = ConvNet(device, dropouts).to(device)
+        model_choice = ConvNet(device, dropouts, output_dimension, doa_classes).to(device)
     elif modelname == "CRNN":
-        model_choice = CRNN(device, dropouts).to(device)
+        model_choice = CRNN(device, dropouts, output_dimension, doa_classes).to(device)
 
     config = TrainConfig() \
         .set_data_folder(inputdir) \
@@ -58,7 +58,7 @@ def black_box_function(lr_pow):
         .set_model(model_choice)
 
     # negative sign for minimization
-    return -doa_train(config)
+    return (-1)*doa_train(config)
 
 
 if __name__ == "__main__":
