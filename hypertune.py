@@ -89,7 +89,7 @@ if __name__ == "__main__":
     print('writing log file to {}'.format(logpath))
 
     # Bounded region of parameter space
-    pbounds = {'lr_pow': (0, -10)}
+    pbounds = {'lr_pow': (-10, 0)}
 
     optimizer = BayesianOptimization(
         f=black_box_function,
