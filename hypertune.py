@@ -55,10 +55,12 @@ def black_box_function(lr_pow):
         .set_num_epochs(epochs) \
         .set_test_to_all_ratio(0.1) \
         .set_results_dir(results_dir) \
-        .set_model(model_choice)
+        .set_model(model_choice) \
+        .set_loss_criterion(loss) \
+        .set_doa_classes(doa_classes)
 
     # negative sign for minimization
-    return (-1)*doa_train(config)
+    return -doa_train(config)
 
 
 if __name__ == "__main__":
