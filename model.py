@@ -75,12 +75,15 @@ class ConvNet(nn.Module):
             modules.append(layer)
             modules.append(dropouts.conv_dropout)
         self.conv = nn.Sequential(*modules)
-        self.fc = nn.Linear(64*25*2, output_dimension)
+        self.fc1 = nn.Linear(64*25*2, 64*25*2)
+        self.fc2 = nn.Linear(64*25*2, output_dimension)
+        #self.fc = nn.Linear(64*25*2, output_dimension)
         self.softmax = nn.Softmax(1) if is_classifier else None
 
     def forward(self, x):
         out = self.dropouts.input_dropout(x)
         out = self.conv(out)  # (bsz, 64, 25, 2)
         flattened = out.view(len(out), 64*25*2)
-        fc_out = self.fc(flattened)
+        #fc_out = self.fc(flattened)
+        fc_out = self.fc2(self.fc1(flattened))
         return self.softmax(fc_out) if self.softmax else fc_out
