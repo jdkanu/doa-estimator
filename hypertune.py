@@ -85,11 +85,11 @@ if __name__ == "__main__":
 
     if not os.path.exists(args.logdir):
         os.makedirs(args.logdir)
-    logpath = os.path.join(args.logdir, 'logs_bs{}_{}.json'.format(batch_size, time.strftime("%Y_%m_%d_%H_%M_%S")))
+    logpath = os.path.join(args.logdir, 'logs_bs{}_{}_{}.json'.format(batch_size, modelname, outputformulation))
     print('writing log file to {}'.format(logpath))
 
     # Bounded region of parameter space
-    pbounds = {'lr_pow': (-1, -10)}
+    pbounds = {'lr_pow': (0, -10)}
 
     optimizer = BayesianOptimization(
         f=black_box_function,
@@ -106,8 +106,8 @@ if __name__ == "__main__":
     optimizer.subscribe(Events.OPTMIZATION_STEP, logger)
 
     optimizer.maximize(
-        init_points=100,
-        n_iter=3,
+        init_points=2,
+        n_iter=100,
     )
 
     print(optimizer.max)
