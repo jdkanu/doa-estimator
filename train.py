@@ -53,7 +53,7 @@ class CustomDataset(Dataset):
 
         return data, label
 
-def diffraction_train(config):
+def doa_train(config):
 
     # initialize dataset
     if not os.path.exists(config.data_folder):
@@ -67,8 +67,8 @@ def diffraction_train(config):
     dataset = []
     for line in csv_reader:
         npypath = os.path.join(config.data_folder, line[0])
-        # if os.path.exists(npypath):
-        dataset.append([npypath, [float(x) for x in line[1:4]]])
+        if os.path.exists(npypath):
+            dataset.append([npypath, [float(x) for x in line[1:4]]])
         # if len(dataset)>1000:
         #     break
 
@@ -92,7 +92,7 @@ def diffraction_train(config):
     if not os.path.exists(config.results_dir):
         os.makedirs(config.results_dir)
     writer = SummaryWriter(config.results_dir)
-    angle_observations = np.array([5, 10, 15, 30])
+    angle_observations = np.array([5, 10, 15])
 
     # Train the model
     ts = time.time()
@@ -134,12 +134,18 @@ def diffraction_train(config):
                     labels = labels.to(device) if config.doa_classes else labels.float().to(device)
                     outputs = config.model(images)
                     loss = criterion(outputs, labels)
-                    total_val_loss += loss
+                    total_val_loss += loss.item()
                     total_labels += len(labels)
-                    angles = TensorAngles(outputs, labels)
+                    if config.doa_classes:
+                        _, predicted = torch.max(outputs, 1)
+                        P = [config.doa_classes.classes[x].get_xyz_vector() for x in predicted]
+                        L = [config.doa_classes.classes[x].get_xyz_vector() for x in labels]
+                        angles = TensorAngles(torch.tensor(P), torch.tensor(L))
+                    else:
+                        angles = TensorAngles(outputs, labels)
                     for i, deg in enumerate(angle_observations):
                         angle_cnts[i] += (angles <= np.deg2rad(deg)).sum().item()
-                average_val_loss = total_val_loss.item() / total_labels
+                average_val_loss = total_val_loss / total_labels
                 writer.add_scalar("val_loss", average_val_loss, epoch)
                 print('[Validation] Test Accuracy of the model at Epoch {}: {:.8f}'.format(epoch + 1, average_val_loss))
                 angle_accuracy = angle_cnts / total_labels
@@ -167,8 +173,8 @@ if __name__ == "__main__":
     if torch.cuda.is_available():
         torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
-    parser = argparse.ArgumentParser(prog='diffraction_CNNtrain',
-                                     description="""Script to train the InstantDiffraction system""")
+    parser = argparse.ArgumentParser(prog='train',
+                                     description="""Script to train the DOA estimation system""")
     parser.add_argument("--input", "-i", default="data", help="Directory where data and labels are", type=str)
     parser.add_argument("--savedir", "-s", default=".", help="Directory to write results", type=str)
     parser.add_argument("--rate", "-r", type=float, default=None, help="Choose a learning rate, default to sweep")
@@ -219,4 +225,4 @@ if __name__ == "__main__":
                         .set_model(model_choice) \
                         .set_loss_criterion(loss) \
                         .set_doa_classes(doa_classes)
-            diffraction_train(config)
+            doa_train(config)

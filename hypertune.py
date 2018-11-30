@@ -3,12 +3,15 @@ from bayes_opt.observer import JSONLogger
 from bayes_opt.event import Events
 
 import torch
-from train import diffraction_train
+import torch.nn as nn
+from train import doa_train
 from config import TrainConfig, Dropouts
 import argparse
 import os
 from model import CRNN, ConvNet
 import time
+
+from doa_classes import DoaClasses
 
 # Device configuration
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -20,15 +23,26 @@ batch_size = 512
 modelname = 'CRNN'
 dropout = 0
 epochs = 30
+outputformulation = "Class"
 
 
-def black_box_function(learning_rate):
+def black_box_function(lr_pow):
+    learning_rate = 10.0 ** lr_pow
     results_dir = os.path.join(savedir,
-                               "results" + '_{}'.format(modelname) + '_lr{}'.format(learning_rate) + '_bs{}'.format(
+                               "results" + '_{}'.format(modelname) + '_{}'.format(args.outputformulation) + '_lr{}'.format(learning_rate) + '_bs{}'.format(
                                    batch_size) + '_drop{}'.format(dropout))
     print('writing results to {}'.format(results_dir))
 
     dropouts = Dropouts(dropout, dropout, dropout)
+    doa_classes = None
+    if outputformulation == "Reg":
+        loss = nn.MSELoss(reduction='sum')
+        output_dimension = 3
+    elif outputformulation == "Class":
+        loss = nn.CrossEntropyLoss()
+        doa_classes = DoaClasses()
+        output_dimension = len(doa_classes.classes)
+
     if modelname == "CNN":
         model_choice = ConvNet(device, dropouts).to(device)
     elif modelname == "CRNN":
@@ -44,14 +58,28 @@ def black_box_function(learning_rate):
         .set_model(model_choice)
 
     # negative sign for minimization
-    return -diffraction_train(config)
+    return -doa_train(config)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='hypertune',
                                      description="""Script to tune hyperparameters for deep learning""")
     parser.add_argument("--logdir", "-l", default=savedir, help="Directory to write logfiles", type=str)
+    parser.add_argument("--batchsize", "-b", type=int, default=None, help="Choose a batchsize, default to sweep")
+    parser.add_argument("--probe", "-p", type=float, default=None, help="Choose a probe to start with")
+    parser.add_argument("--outputformulation", "-of", type=str, choices=["Reg", "Class"], required=True, help="Choose output formulation")
+    parser.add_argument("--model", "-m", type=str, choices=["CNN", "CRNN"], required=True, help="Choose network model")
+
     args = parser.parse_args()
+
+    global batch_size
+    if args.batchsize:
+        batch_size = args.batchsize
+    global modelname
+    if args.model:
+        modelname = args.model
+    global outputformulation
+    outputformulation = args.outputformulation
 
     if not os.path.exists(args.logdir):
         os.makedirs(args.logdir)
@@ -59,13 +87,18 @@ if __name__ == "__main__":
     print('writing log file to {}'.format(logpath))
 
     # Bounded region of parameter space
-    pbounds = {'learning_rate': (0, 1)}
+    pbounds = {'lr_pow': (-1, -10)}
 
     optimizer = BayesianOptimization(
         f=black_box_function,
         pbounds=pbounds,
-        random_state=1,
     )
+
+    if args.probe:
+        optimizer.probe(
+            params={"lr_pow": args.probe},
+            lazy=True,
+        )
 
     logger = JSONLogger(path=logpath)
     optimizer.subscribe(Events.OPTMIZATION_STEP, logger)
