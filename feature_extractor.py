@@ -55,8 +55,11 @@ def extract_feature(filepath, savepath):
     intensity_vecs[:, :, 4] = WY.imag / energy
     intensity_vecs[:, :, 5] = WZ.imag / energy
 
-
-    np.save(savepath, intensity_vecs)
+    if np.isnan(intensity_vecs).any() or np.isinf(intensity_vecs).any():
+        print('file {} not saved due to invalid values'.format(savepath))
+        return
+    else:
+        np.save(savepath, intensity_vecs)
 
 
 def main():
