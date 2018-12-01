@@ -42,17 +42,20 @@ def extract_feature(filepath, savepath):
             all_freqs[i, :, :] = calc_spectrum(resampled)
         else:
             all_freqs[i, :, :] = calc_spectrum(track)
-
+    squared = np.square(np.absolute(all_freqs))
+    energy = squared[0, :] + (squared[1, :] + squared[2, :] + squared[3, :])/3
     WX = np.multiply(all_freqs[0, :, :], all_freqs[3, :, :])
     WY = np.multiply(all_freqs[0, :, :], all_freqs[1, :, :])
     WZ = np.multiply(all_freqs[0, :, :], all_freqs[2, :, :])
     intensity_vecs = np.zeros((num_frames, chunk_size // 2 + 1, 6), dtype='float32')
-    intensity_vecs[:, :, 0] = WX.real
-    intensity_vecs[:, :, 1] = WY.real
-    intensity_vecs[:, :, 2] = WZ.real
-    intensity_vecs[:, :, 3] = WX.imag
-    intensity_vecs[:, :, 4] = WY.imag
-    intensity_vecs[:, :, 5] = WZ.imag
+    intensity_vecs[:, :, 0] = WX.real / energy
+    intensity_vecs[:, :, 1] = WY.real / energy
+    intensity_vecs[:, :, 2] = WZ.real / energy
+    intensity_vecs[:, :, 3] = WX.imag / energy
+    intensity_vecs[:, :, 4] = WY.imag / energy
+    intensity_vecs[:, :, 5] = WZ.imag / energy
+
+
     np.save(savepath, intensity_vecs)
 
 
