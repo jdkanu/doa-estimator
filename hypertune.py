@@ -66,7 +66,7 @@ def black_box_function(lr_pow):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='hypertune',
                                      description="""Script to tune hyperparameters for deep learning""")
-    parser.add_argument("--logdir", "-l", default=savedir, help="Directory to write logfiles", type=str)
+    parser.add_argument("--logdir", "-l", default=None, help="Directory to write logfiles", type=str)
     parser.add_argument("--batchsize", "-b", type=int, default=None, help="Choose a batchsize, default to sweep")
     parser.add_argument("--probe", "-p", type=float, default=None, help="Choose a probe to start with")
     parser.add_argument("--outputformulation", "-of", type=str, choices=["Reg", "Class"], required=True, help="Choose output formulation")
@@ -82,14 +82,16 @@ if __name__ == "__main__":
         modelname = args.model
     global outputformulation
     outputformulation = args.outputformulation
-
-    if not os.path.exists(args.logdir):
-        os.makedirs(args.logdir)
-    logpath = os.path.join(args.logdir, 'logs_bs{}_{}_{}.json'.format(batch_size, modelname, outputformulation))
+    global savedir
+    if args.logdir:
+        savedir = args.logdir
+    if not os.path.exists(savedir):
+        os.makedirs(savedir)
+    logpath = os.path.join(savedir, 'logs_bs{}_{}_{}.json'.format(batch_size, modelname, outputformulation))
     print('writing log file to {}'.format(logpath))
 
     # Bounded region of parameter space
-    pbounds = {'lr_pow': (0, -10)}
+    pbounds = {'lr_pow': (-10, -1)}
 
     optimizer = BayesianOptimization(
         f=black_box_function,
@@ -101,12 +103,28 @@ if __name__ == "__main__":
             params={"lr_pow": args.probe},
             lazy=True,
         )
-
+    else:
+        optimizer.probe(
+            params={"lr_pow": -2},
+            lazy=True,
+        )
+        optimizer.probe(
+            params={"lr_pow": -4},
+            lazy=True,
+        )
+        optimizer.probe(
+            params={"lr_pow": -6},
+            lazy=True,
+        )
+        optimizer.probe(
+            params={"lr_pow": -8},
+            lazy=True,
+        )
     logger = JSONLogger(path=logpath)
     optimizer.subscribe(Events.OPTMIZATION_STEP, logger)
 
     optimizer.maximize(
-        init_points=2,
+        init_points=0,
         n_iter=100,
     )
 

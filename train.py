@@ -97,7 +97,7 @@ def doa_train(config):
 
     # Train the model
     ts = time.time()
-    num_iterations_before_early_stop = 5
+    num_iterations_before_early_stop = 3
     early_stop_flag = False
     early_stop_cnt = 0
     lowest_error = 1e6
