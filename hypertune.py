@@ -66,6 +66,7 @@ def black_box_function(lr_pow):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='hypertune',
                                      description="""Script to tune hyperparameters for deep learning""")
+    parser.add_argument("--input", "-i", default="data", help="Directory where data and labels are", type=str)
     parser.add_argument("--logdir", "-l", default=None, help="Directory to write logfiles", type=str)
     parser.add_argument("--batchsize", "-b", type=int, default=None, help="Choose a batchsize, default to sweep")
     parser.add_argument("--probe", "-p", type=float, default=None, help="Choose a probe to start with")
@@ -73,7 +74,9 @@ if __name__ == "__main__":
     parser.add_argument("--model", "-m", type=str, choices=["CNN", "CRNN"], required=True, help="Choose network model")
 
     args = parser.parse_args()
-
+    
+    global inputdir
+    inputdir = args.input
     global batch_size
     if args.batchsize:
         batch_size = args.batchsize
