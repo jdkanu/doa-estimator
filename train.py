@@ -49,7 +49,7 @@ class CustomDataset(Dataset):
 
         label = np.array(self.internal_data[index][1:4]).astype("float32")[0]
         if self.train_config.doa_classes:
-            label = self.train_config.doa_classes.index_for_xyz(label)
+            label = np.array([self.train_config.doa_classes.index_for_xyz(label)]*25)
 
         return data, label
 
@@ -97,7 +97,7 @@ def doa_train(config):
 
     # Train the model
     ts = time.time()
-    num_iterations_before_early_stop = 5
+    num_iterations_before_early_stop = 3
     early_stop_flag = False
     early_stop_cnt = 0
     lowest_error = 1e6
@@ -108,7 +108,7 @@ def doa_train(config):
             for i, (images, labels) in enumerate(train_loader):
                 # Forward pass
                 images = images.float().to(device)
-                labels = labels.to(device) if config.doa_classes else labels.float().to(device)
+                labels = labels.long().to(device) if config.doa_classes else labels.float().to(device)
                 outputs = config.model(images)
                 loss = criterion(outputs, labels)
 
@@ -132,15 +132,16 @@ def doa_train(config):
                 angle_cnts = np.zeros(shape=angle_observations.shape)
                 for images, labels in val_loader:
                     images = images.float().to(device)
-                    labels = labels.to(device) if config.doa_classes else labels.float().to(device)
+                    labels = labels.long().to(device) if config.doa_classes else labels.float().to(device)
                     outputs = config.model(images)
                     loss = criterion(outputs, labels)
                     total_val_loss += loss.item()
                     total_labels += len(labels)
                     if config.doa_classes:
-                        _, predicted = torch.max(outputs, 1)
+                        _, predicted = torch.max(torch.sum(outputs, 2), 1)
                         P = [config.doa_classes.classes[x].get_xyz_vector() for x in predicted]
-                        L = [config.doa_classes.classes[x].get_xyz_vector() for x in labels]
+                        # Note: can take the 0th label because it's one of 25 identical labels for each frame
+                        L = [config.doa_classes.classes[x].get_xyz_vector() for x in labels[:,0]]
                         angles = TensorAngles(torch.tensor(P), torch.tensor(L))
                     else:
                         angles = TensorAngles(outputs, labels)
@@ -185,8 +186,8 @@ if __name__ == "__main__":
     # parser.add_argument("--input_dropout", "-id", type=float, default=0., help="Specify input dropout rate")
     # parser.add_argument("--conv_dropout", "-cd", type=float, default=0., help="Specify conv dropout rate (applied at all layers)")
     # parser.add_argument("--lstm_dropout", "-ld", type=float, default=0., help="Specify lstm dropout rate (applied to lstm output)")
-    parser.add_argument("--model", "-m", type=str, choices=["CNN", "CRNN"], required=True, help="Choose network model")
-    parser.add_argument("--outputformulation", "-of", type=str, choices=["Reg", "Class"], required=True, help="Choose output formulation")
+    parser.add_argument("--model", "-m", type=str, choices=["CNN", "CRNN"], required=False, default="CRNN", help="Choose network model")
+    parser.add_argument("--outputformulation", "-of", type=str, choices=["Reg", "Class"], required=False, default="Class", help="Choose output formulation")
     args = parser.parse_args()
 
     # dropouts = Dropouts(args.input_dropout, args.conv_dropout, args.lstm_dropout)
