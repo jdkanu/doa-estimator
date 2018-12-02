@@ -187,6 +187,7 @@ if __name__ == "__main__":
     # parser.add_argument("--lstm_dropout", "-ld", type=float, default=0., help="Specify lstm dropout rate (applied to lstm output)")
     parser.add_argument("--model", "-m", type=str, choices=["CNN", "CRNN"], required=True, help="Choose network model")
     parser.add_argument("--outputformulation", "-of", type=str, choices=["Reg", "Class"], required=True, help="Choose output formulation")
+    parser.add_argument("--lstmout", "-of", type=str, choices=["Full", "First", "Last"], required=True, help="Choose output formulation")
     args = parser.parse_args()
 
     # dropouts = Dropouts(args.input_dropout, args.conv_dropout, args.lstm_dropout)
@@ -225,5 +226,6 @@ if __name__ == "__main__":
                         .set_results_dir(results_dir) \
                         .set_model(model_choice) \
                         .set_loss_criterion(loss) \
-                        .set_doa_classes(doa_classes)
+                        .set_doa_classes(doa_classes) \
+                        .set_lstm_output(args.lstmout)
             doa_train(config)

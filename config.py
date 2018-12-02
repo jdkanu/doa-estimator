@@ -41,6 +41,10 @@ class TrainConfig():
         self.doa_classes = doa_classes
         return self
 
+    def set_lstm_output(self, lstm_output):
+        self.lstm_output = lstm_output
+        return self
+
 class Dropouts():
     def __init__(self, input_dropout, conv_dropout, lstm_dropout):
         self.input_dropout = nn.Dropout(input_dropout)
