@@ -96,6 +96,7 @@ if __name__ == "__main__":
     # Bounded region of parameter space
     pbounds = {'lr_pow': (-10, -1)}
 
+
     optimizer = BayesianOptimization(
         f=black_box_function,
         pbounds=pbounds,
