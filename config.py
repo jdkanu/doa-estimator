@@ -1,5 +1,9 @@
 import torch.nn as nn
 
+LSTM_FULL = "Full"
+LSTM_FIRST = "First"
+LSTM_LAST = "Last"
+
 class TrainConfig():
     def set_data_folder(self, data_folder):
         self.data_folder = data_folder
@@ -39,6 +43,10 @@ class TrainConfig():
 
     def set_doa_classes(self, doa_classes):
         self.doa_classes = doa_classes
+        return self
+
+    def set_lstm_output(self, lstm_output):
+        self.lstm_output = lstm_output
         return self
 
 class Dropouts():
