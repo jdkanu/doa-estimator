@@ -12,7 +12,7 @@ from sklearn.preprocessing import scale
 from itertools import compress
 import argparse
 from model import CRNN, ConvNet
-from config import TrainConfig, Dropouts
+from config import TrainConfig, Dropouts, LSTM_FIRST, LSTM_FULL, LSTM_LAST
 from doa_classes import DoaClasses
 
 # Device configuration
@@ -28,6 +28,8 @@ def TensorAngles(a, b):
     angle[torch.isnan(angle)] = 0
     return angle
 
+def output_has_all_frames(config):
+    return config.lstm_output == LSTM_FULL and isinstance(config.model, CRNN)
 
 # dataset
 class CustomDataset(Dataset):
@@ -50,6 +52,8 @@ class CustomDataset(Dataset):
         label = np.array(self.internal_data[index][1:4]).astype("float32")[0]
         if self.train_config.doa_classes:
             label = self.train_config.doa_classes.index_for_xyz(label)
+        if output_has_all_frames(self.train_config):
+            label = np.array([label]*25)
 
         return data, label
 
@@ -97,7 +101,7 @@ def doa_train(config):
 
     # Train the model
     ts = time.time()
-    num_iterations_before_early_stop = 5
+    num_iterations_before_early_stop = 3
     early_stop_flag = False
     early_stop_cnt = 0
     lowest_error = 1e6
@@ -108,7 +112,11 @@ def doa_train(config):
             for i, (images, labels) in enumerate(train_loader):
                 # Forward pass
                 images = images.float().to(device)
-                labels = labels.to(device) if config.doa_classes else labels.float().to(device)
+                if config.doa_classes:
+                    labels = labels.long() 
+                else:
+                    labels = labels.float()
+                labels = labels.to(device)
                 outputs = config.model(images)
                 loss = criterion(outputs, labels)
 
@@ -132,17 +140,28 @@ def doa_train(config):
                 angle_cnts = np.zeros(shape=angle_observations.shape)
                 for images, labels in val_loader:
                     images = images.float().to(device)
-                    labels = labels.to(device) if config.doa_classes else labels.float().to(device)
+                    if config.doa_classes:
+                        labels = labels.long()
+                    else:
+                        labels = labels.float()
+                    labels = labels.to(device)
                     outputs = config.model(images)
                     loss = criterion(outputs, labels)
                     total_val_loss += loss.item()
                     total_labels += len(labels)
                     if config.doa_classes:
+                        if output_has_all_frames(config):
+                            outputs = torch.sum(outputs, 2)
+                            labels = labels[:, 0] # Can take the 0th b/c labels identical for frames
                         _, predicted = torch.max(outputs, 1)
                         P = [config.doa_classes.classes[x].get_xyz_vector() for x in predicted]
-                        L = [config.doa_classes.classes[x].get_xyz_vector() for x in labels]
+                        # Note: can take the 0th label because it's one of 25 identical labels for each frame
+                        L = [config.doa_classes.classes[x].get_xyz_vector() for x in labels[:,0]]
                         angles = TensorAngles(torch.tensor(P), torch.tensor(L))
                     else:
+                        if output_has_all_frames(config):
+                            outputs = torch.sum(outputs, 1)/25
+                            labels = labels[:, 0]
                         angles = TensorAngles(outputs, labels)
                     for i, deg in enumerate(angle_observations):
                         angle_cnts[i] += (angles <= np.deg2rad(deg)).sum().item()
@@ -187,6 +206,7 @@ if __name__ == "__main__":
     # parser.add_argument("--lstm_dropout", "-ld", type=float, default=0., help="Specify lstm dropout rate (applied to lstm output)")
     parser.add_argument("--model", "-m", type=str, choices=["CNN", "CRNN"], required=True, help="Choose network model")
     parser.add_argument("--outputformulation", "-of", type=str, choices=["Reg", "Class"], required=True, help="Choose output formulation")
+    parser.add_argument("--lstmout", "-lo", type=str, choices=[LSTM_FULL, LSTM_FIRST, LSTM_LAST], required=False, default=LSTM_FULL, help="Choose what to use from LSTM ouput")
     args = parser.parse_args()
 
     # dropouts = Dropouts(args.input_dropout, args.conv_dropout, args.lstm_dropout)
@@ -207,14 +227,14 @@ if __name__ == "__main__":
                 loss = nn.MSELoss(reduction='sum')
                 output_dimension = 3
             elif args.outputformulation == "Class":
-                loss = nn.CrossEntropyLoss()
+                loss = nn.CrossEntropyLoss(reduction="sum")
                 doa_classes = DoaClasses()
                 output_dimension = len(doa_classes.classes)
 
             if args.model == "CNN":
                 model_choice = ConvNet(device, dropouts, output_dimension, doa_classes).to(device)
             elif args.model == "CRNN":
-                model_choice = CRNN(device, dropouts, output_dimension, doa_classes).to(device)
+                model_choice = CRNN(device, dropouts, output_dimension, doa_classes, args.lstmout).to(device)
 
             config = TrainConfig() \
                         .set_data_folder(args.input) \
@@ -225,5 +245,6 @@ if __name__ == "__main__":
                         .set_results_dir(results_dir) \
                         .set_model(model_choice) \
                         .set_loss_criterion(loss) \
-                        .set_doa_classes(doa_classes)
+                        .set_doa_classes(doa_classes) \
+                        .set_lstm_output(args.lstmout)
             doa_train(config)

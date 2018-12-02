@@ -1,9 +1,11 @@
 import torch.nn as nn
 import torch
+from config import LSTM_FIRST, LSTM_FULL, LSTM_LAST
 
 class CRNN(nn.Module):
-    def __init__(self, device, dropouts, output_dimension, is_classifier):
+    def __init__(self, device, dropouts, output_dimension, is_classifier, lstm_out_form):
         super(CRNN, self).__init__()
+        self.lstm_out_form = lstm_out_form
         self.device = device
         self.dropouts = dropouts
         conv_layers = [
@@ -35,7 +37,10 @@ class CRNN(nn.Module):
 
         self.fc1 = nn.Linear(self.hidden_size*2, self.hidden_size*2)
         self.fc2 = nn.Linear(self.hidden_size*2, output_dimension)
-        self.softmax = nn.Softmax(1) if is_classifier else None
+
+        softmax_dim = 2 if self.lstm_out_form == LSTM_FULL else 1
+        self.softmax = nn.Softmax(softmax_dim) if is_classifier else None
+
 
     def forward(self, x):
         out = self.dropouts.input_dropout(x)
@@ -46,8 +51,15 @@ class CRNN(nn.Module):
         c0 = torch.zeros(self.num_layers*2, reshape.size(0), self.hidden_size).to(self.device)
 
         lstm_out, _ = self.lstm(reshape, (h0, c0))
-        fc_out = self.fc2(self.fc1(lstm_out[:, -1, :])) # NOTE: revisit to use more than just the last LSTM output
-        return self.softmax(fc_out) if self.softmax else fc_out
+
+        if self.lstm_out_form == LSTM_FULL:
+            fc_out = self.fc2(self.fc1(lstm_out))
+            return self.softmax(fc_out).permute(0, 2, 1) if self.softmax else fc_out
+        else:
+            lstm_out_ind = 0 if self.lstm_out_form == LSTM_FIRST else -1
+            fc_out = self.fc2(self.fc1(lstm_out[:, lstm_out_ind, :]))
+            return self.softmax(fc_out) if self.softmax else fc_out
+
 
 class ConvNet(nn.Module):
     def __init__(self, device, dropouts, output_dimension, is_classifier):
