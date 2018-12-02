@@ -1,5 +1,9 @@
 import torch.nn as nn
 
+LSTM_FULL = "Full"
+LSTM_FIRST = "First"
+LSTM_LAST = "Last"
+
 class TrainConfig():
     def set_data_folder(self, data_folder):
         self.data_folder = data_folder
