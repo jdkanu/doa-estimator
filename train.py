@@ -226,7 +226,7 @@ if __name__ == "__main__":
                 loss = nn.MSELoss(reduction='sum')
                 output_dimension = 3
             elif args.outputformulation == "Class":
-                loss = nn.CrossEntropyLoss()
+                loss = nn.CrossEntropyLoss(reduction="sum")
                 doa_classes = DoaClasses()
                 output_dimension = len(doa_classes.classes)
 
