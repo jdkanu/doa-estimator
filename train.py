@@ -155,8 +155,7 @@ def doa_train(config):
                             labels = labels[:, 0] # Can take the 0th b/c labels identical for frames
                         _, predicted = torch.max(outputs, 1)
                         P = [config.doa_classes.classes[x].get_xyz_vector() for x in predicted]
-                        # Note: can take the 0th label because it's one of 25 identical labels for each frame
-                        L = [config.doa_classes.classes[x].get_xyz_vector() for x in labels[:,0]]
+                        L = [config.doa_classes.classes[x].get_xyz_vector() for x in labels]
                         angles = TensorAngles(torch.tensor(P), torch.tensor(L))
                     else:
                         if output_has_all_frames(config):
