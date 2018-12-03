@@ -41,6 +41,7 @@ class CRNN(nn.Module):
         softmax_dim = 2 if self.lstm_out_form == LSTM_FULL else 1
         self.softmax = nn.Softmax(softmax_dim) if is_classifier else None
 
+
     def forward(self, x):
         out = self.dropouts.input_dropout(x)
         out = self.conv(out)  # (bsz, 64, 25, 2)
@@ -58,6 +59,7 @@ class CRNN(nn.Module):
             lstm_out_ind = 0 if self.lstm_out_form == LSTM_FIRST else -1
             fc_out = self.fc2(self.fc1(lstm_out[:, lstm_out_ind, :]))
             return self.softmax(fc_out) if self.softmax else fc_out
+
 
 class ConvNet(nn.Module):
     def __init__(self, device, dropouts, output_dimension, is_classifier):
