@@ -24,7 +24,7 @@ modelname = 'CRNN'
 dropout = 0
 epochs = 30
 outputformulation = "Class"
-
+lstmout = 'Full'
 
 def black_box_function(lr_pow):
     learning_rate = 10.0 ** lr_pow
@@ -46,7 +46,7 @@ def black_box_function(lr_pow):
     if modelname == "CNN":
         model_choice = ConvNet(device, dropouts, output_dimension, doa_classes).to(device)
     elif modelname == "CRNN":
-        model_choice = CRNN(device, dropouts, output_dimension, doa_classes).to(device)
+        model_choice = CRNN(device, dropouts, output_dimension, doa_classes, lstmout).to(device)
 
     config = TrainConfig() \
         .set_data_folder(inputdir) \
@@ -57,8 +57,8 @@ def black_box_function(lr_pow):
         .set_results_dir(results_dir) \
         .set_model(model_choice) \
         .set_loss_criterion(loss) \
-        .set_doa_classes(doa_classes)
-
+        .set_doa_classes(doa_classes) \
+        .set_lstm_output(lstmout)
     # negative sign for minimization
     return -doa_train(config)
 
@@ -118,10 +118,6 @@ if __name__ == "__main__":
         )
         optimizer.probe(
             params={"lr_pow": -6},
-            lazy=True,
-        )
-        optimizer.probe(
-            params={"lr_pow": -8},
             lazy=True,
         )
     logger = JSONLogger(path=logpath)
