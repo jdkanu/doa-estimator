@@ -2,8 +2,50 @@ import os
 import numpy as np
 import pysound as ps
 import ir
+import csv
+from sklearn.model_selection import train_test_split
 from batch_convolver import convolve
 from feature_extractor import extract_feature
+from shutil import copy2
+
+
+def isolate_train_val(data_folder, output, ratio, seed, format='.wav'):
+    labelpath = os.path.join(data_folder, 'labels.csv')
+    csvfile = open(labelpath, 'r')
+    csv_reader = csv.reader(csvfile, delimiter=',')
+    header = next(csv_reader, None)
+    dataset = []
+    for line in csv_reader:
+        npypath = os.path.join(data_folder, line[0])
+        datapath = npypath.replace('.npy', format)
+        if os.path.exists(datapath):
+            dataset.append(line)
+
+    train_data_entries, val_data_entries = train_test_split(dataset, test_size=ratio, random_state=seed)
+
+    val_folder = os.path.join(output, 'val')
+    if not os.path.exists(val_folder):
+        os.makedirs(val_folder)
+    val_writer = csv.writer(open(os.path.join(val_folder, 'labels.csv'), 'w'))
+    val_writer.writerow(header)
+    for data in val_data_entries:
+        old_path = os.path.join(data_folder, data[0]).replace('.npy', format)
+        new_path = old_path.replace(data_folder, val_folder)
+        copy2(old_path, new_path)
+        val_writer.writerow(data)
+
+    train_folder = os.path.join(output, 'train')
+    if not os.path.exists(train_folder):
+        os.makedirs(train_folder)
+    train_writer = csv.writer(open(os.path.join(train_folder, 'labels.csv'), 'w'))
+    train_writer.writerow(header)
+    for data in train_data_entries:
+        old_path = os.path.join(data_folder, data[0]).replace('.npy', format)
+        new_path = old_path.replace(data_folder, train_folder)
+        copy2(old_path, new_path)
+        train_writer.writerow(data)
+
+
 
 
 def save_rectangle_room(dims, filepath_out='rect.obj'):
@@ -66,6 +108,8 @@ def save_feature(meshpath, speechpath, src_coord, lis_coord, absorb=0.1):
 
 if __name__ == "__main__":
     # save_rectangle_room([5.3,5.9,2.38])
-    feature_path = save_feature('data/room.obj', 'data/84-121123-0000.flac', [1,1,1], [3,5,4])
-    if feature_path:
-        features = np.load(feature_path)
+    # feature_path = save_feature('data/room.obj', 'data/84-121123-0000.flac', [1,1,1], [3,5,4])
+    # if feature_path:
+    #     features = np.load(feature_path)
+
+    isolate_train_val('/scratch1/zhy/Ambisonic_houses_convolved', '/scratch1/zhy/Ambisonic_houses_convolved_split', 0.1, 11)
