@@ -4,7 +4,32 @@ import pysound as ps
 import ir
 from batch_convolver import convolve
 from feature_extractor import extract_feature
+from model import CRNN, ConvNet
+import torch
+import torch.nn as nn
+from config import TrainConfig, Dropouts, LSTM_FIRST, LSTM_FULL, LSTM_LAST
+from doa_classes import DoaClasses
 
+# Device configuration
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+def create_model(formulation, model):
+    dropouts = Dropouts(0, 0, 0)
+    doa_classes = None
+    if formulation == "Reg":
+        loss = nn.MSELoss(reduction='sum')
+        output_dimension = 3        
+    elif formulation == "Class":
+        loss = nn.CrossEntropyLoss(reduction="sum")
+        doa_classes = DoaClasses()
+        output_dimension = len(doa_classes.classes)
+
+    if model == "CNN":
+        model_choice = ConvNet(device, dropouts, output_dimension, doa_classes).to(device)
+    elif model == "CRNN":
+        model_choice = CRNN(device, dropouts, output_dimension, doa_classes, "Full").to(device)
+    return model_choice
+        
 
 def save_rectangle_room(dims, filepath_out='rect.obj'):
     with open(filepath_out, 'w') as ofile:
@@ -66,6 +91,7 @@ def save_feature(meshpath, speechpath, src_coord, lis_coord, absorb=0.1):
 
 if __name__ == "__main__":
     # save_rectangle_room([5.3,5.9,2.38])
-    feature_path = save_feature('data/room.obj', 'data/84-121123-0000.flac', [1,1,1], [3,5,4])
-    if feature_path:
-        features = np.load(feature_path)
+    model = create_model("Reg", "CNN")
+    #feature_path = save_feature('data/room.obj', 'data/84-121123-0000.flac', [1,1,1], [3,5,4])
+    #if feature_path:
+    #    features = np.load(feature_path)
