@@ -52,7 +52,7 @@ def read_data_entries(data_folder,labelpath):
 
 def generate_loader(config,data_entries,shuffle=False):
   dataset = CustomDataset(data_entries,config)
-  return DataLoader(dataset=train_dataset,batch_size=config.batch_size,\
+  return DataLoader(dataset=dataset,batch_size=config.batch_size,\
                     shuffle=shuffle,num_workers=0)
 
 def generate_loaders(config):
