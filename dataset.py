@@ -1,4 +1,5 @@
 import os
+import csv
 import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
@@ -31,7 +32,7 @@ class CustomDataset(Dataset):
 
     return data, label
 
-def read_data_entries(labelpath):
+def read_data_entries(data_folder,labelpath):
   # initialize dataset
   if not os.path.exists(labelpath):
     print("file does not exist")
@@ -59,7 +60,7 @@ def generate_loaders(config):
   if not config.test_only:
     train_labels_path = os.path.join(config.data_folder,'train_labels.csv')
 
-    train_data_entries = read_data_entries(train_labels_path)
+    train_data_entries = read_data_entries(config.data_folder,train_labels_path)
     train_data_entries, val_data_entries = train_test_split(train_data_entries,\
                             test_size=config.test_to_all_ratio, random_state=11)
   
@@ -68,7 +69,7 @@ def generate_loaders(config):
 
   if not config.train_only:
     test_labels_path = os.path.join(config.data_folder,'test_labels.csv')
-    test_data_entries = read_data_entries(test_labels_path)
+    test_data_entries = read_data_entries(config.data_folder,test_labels_path)
     test_loader = generate_loader(config,test_data_entries)
   
   return train_loader,val_loader,test_loader
