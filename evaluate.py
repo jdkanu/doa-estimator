@@ -100,7 +100,9 @@ if __name__ == "__main__":
                     doa_classes=doa_classes,\
                     lstm_output=args.lstm_out,\
                     results_dir=log_dir,\
-                    thresholds=[5,10,15])
+                    thresholds=[5,10,15],\
+                    test_only=True,\
+                    train_only=False)
     score = compute_tolerance_score(config)
     tolerance_scores.append(score)
 
