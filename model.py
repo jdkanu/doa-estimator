@@ -1,6 +1,9 @@
 import torch.nn as nn
 import torch
-from config import LSTM_FIRST, LSTM_FULL, LSTM_LAST
+
+LSTM_FULL = "Full"
+LSTM_FIRST = "First"
+LSTM_LAST = "Last"
 
 class CRNN(nn.Module):
     def __init__(self, device, dropouts, output_dimension, is_classifier, lstm_out_form):

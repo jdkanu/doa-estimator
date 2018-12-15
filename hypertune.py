@@ -11,7 +11,7 @@ import os
 from model import CRNN, ConvNet
 import time
 
-from doa_classes import DoaClasses
+from doa_math import DoaClasses
 
 # Device configuration
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')

@@ -1,56 +1,36 @@
 import torch.nn as nn
+from model import CRNN, ConvNet, LSTM_FIRST, LSTM_FULL, LSTM_LAST
+from dataset import generate_loaders
 
-LSTM_FULL = "Full"
-LSTM_FIRST = "First"
-LSTM_LAST = "Last"
-
-class TrainConfig():
-    def set_data_folder(self, data_folder):
-        self.data_folder = data_folder
-        return self
-
-    def set_num_threads(self, num_threads):
-        self.num_threads = num_threads
-        return self
-
-    def set_learning_rate(self, learning_rate):
-        self.learning_rate = learning_rate
-        return self
-
-    def set_batch_size(self, batch_size):
-        self.batch_size = batch_size
-        return self
+class Config():
+  def __init__(self, **kwargs):
+    self.data_folder = None
+    self.num_threads = None
+    self.learning_rate = None
+    self.batch_size = None
+    self.num_epochs = None
+    self.test_to_all_ratio = None
+    self.results_dir = None
+    self.model = None
+    self.loss_criterion = None
+    self.lstm_output = None
+    self.shuffle = None
+    self.thresholds = None
+    for key,value in kwargs.items():
+      self.__dict__[key] = value
+    print('\n'.join(["{}={}".format(p,self.__dict__[p]) for p in self.__dict__]))
     
-    def set_num_epochs(self, num_epochs):
-        self.num_epochs = num_epochs
-        return self
+    self.train_loader,self.val_loader,self.test_loader = generate_loaders(self)
     
-    def set_test_to_all_ratio(self, test_to_all_ratio):
-        self.test_to_all_ratio = test_to_all_ratio
-        return self
+  def get_loaders(self):
+    return self.train_loader,self.val_loader,self.test_loader
 
-    def set_results_dir(self, results_dir):
-        self.results_dir = results_dir
-        return self
-
-    def set_model(self, model):
-        self.model = model
-        return self
-
-    def set_loss_criterion(self, loss_criterion):
-        self.loss_criterion = loss_criterion
-        return self
-
-    def set_doa_classes(self, doa_classes):
-        self.doa_classes = doa_classes
-        return self
-
-    def set_lstm_output(self, lstm_output):
-        self.lstm_output = lstm_output
-        return self
+  def use_all_lstm_frames(self):
+    return self.lstm_output == LSTM_FULL and isinstance(self.model, CRNN)
 
 class Dropouts():
     def __init__(self, input_dropout, conv_dropout, lstm_dropout):
         self.input_dropout = nn.Dropout(input_dropout)
         self.conv_dropout = nn.Dropout(conv_dropout)
         self.lstm_dropout = nn.Dropout(lstm_dropout)
+
