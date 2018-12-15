@@ -102,7 +102,8 @@ if __name__ == "__main__":
                     results_dir=log_dir,\
                     thresholds=[5,10,15],\
                     test_only=True,\
-                    train_only=False)
+                    train_only=False,\
+                    batch_size=32)
     score = compute_tolerance_score(config)
     tolerance_scores.append(score)
 
