@@ -10,6 +10,7 @@ import argparse
 import os
 from model import CRNN, ConvNet
 import time
+import numpy as np
 
 from doa_classes import DoaClasses
 
@@ -40,7 +41,7 @@ def black_box_function(lr_pow):
         output_dimension = 3
     elif outputformulation == "Class":
         loss = nn.CrossEntropyLoss()
-        doa_classes = DoaClasses()
+        doa_classes = DoaClasses(doa_grid_resolution = np.pi/36)
         output_dimension = len(doa_classes.classes)
 
     if modelname == "CNN":

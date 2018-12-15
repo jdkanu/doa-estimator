@@ -227,7 +227,7 @@ if __name__ == "__main__":
                 output_dimension = 3
             elif args.outputformulation == "Class":
                 loss = nn.CrossEntropyLoss(reduction="sum")
-                doa_classes = DoaClasses()
+                doa_classes = DoaClasses(doa_grid_resolution = np.pi/12)
                 output_dimension = len(doa_classes.classes)
 
             if args.model == "CNN":
