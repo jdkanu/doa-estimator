@@ -1,8 +1,0 @@
-add citations [] to table documenting approaches
-describe pros,cons  of classification, regression in background?
-
-
-python evaluate.py -d ../res/data -log ../res/log -m ../res/models/
-
-find ranges used in papers that presented graphs on varying SNR levels
-
