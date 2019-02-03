@@ -36,8 +36,9 @@ clear classes
 %   on this machine. It is not an error
 %
 % 4. The occasional crash
-%    Every once in a while (very rarely) MATLAB will crash
-%    Just restart MATLAB and try running it again once or twice and it will run
+%    Every once in a while (very rarely) MATLAB will crash when loading
+%    Laureline's model. Just restart MATLAB and try running it again
+%    and it should work after one or a few restarts
 %
 % 5. Intel MKL ERROR: Parameter 5 was incorrect on entry to DGESDD
 %     This is printed when running keras.models.load_model in Laureline's code
@@ -48,10 +49,13 @@ clear classes
 %       [[-63.24324324 161.05263158]]
 %     TODO Verify that this is not a critical error
 %     Potential solutions:
-%       Build LAPACK library version from source to match MATLAB's lapack version
+%     - Build LAPACK library version from source to match MATLAB's lapack version
 %       MATLAB's version is 3.7.0 on my machine
 %       MATLAB version can be checked with `version -lapack` in MATLAB
 %       I will try this later and see if it fixes it.
+%     - Load models in MATLAB and in Python and check for equality. If they are
+%       equal, then there is no need to worry about the Intel MKL error
+%     - Serialize the keras model and load it without keras.models.load_model
 %
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
